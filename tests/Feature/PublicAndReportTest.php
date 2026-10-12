@@ -16,6 +16,7 @@ class PublicAndReportTest extends TestCase
     use DatabaseTransactions;
 
     protected Crop $crop;
+
     protected District $district;
 
     protected function setUp(): void
@@ -56,7 +57,7 @@ class PublicAndReportTest extends TestCase
     /** AT-14: Consumer submits valid price report */
     public function test_consumer_submits_valid_price_report(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
 
         $photo = UploadedFile::fake()->image('price_tag.jpg', 600, 400);
 
@@ -85,7 +86,7 @@ class PublicAndReportTest extends TestCase
     /** AT-15: Unsafe or oversized files are rejected */
     public function test_unsafe_or_oversized_file_upload_is_rejected(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
 
         // Disallowed executable script disguised as php
         $fakeScript = UploadedFile::fake()->create('malicious.php', 100, 'application/x-php');

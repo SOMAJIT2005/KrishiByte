@@ -39,7 +39,7 @@ class FarmerController extends Controller
                 ->where('district_id', $districtId)
                 ->where('verification_status', 'verified')
                 ->pluck('observed_retail_price')
-                ->map(fn($p) => (float) $p)
+                ->map(fn ($p) => (float) $p)
                 ->toArray();
 
             $statsPrice = CalculationService::calculateReferencePrice($obs);
@@ -59,14 +59,15 @@ class FarmerController extends Controller
 
     public function storeBatch(Request $request)
     {
+        abort_unless(Auth::user()->isFarmer(), 403, 'Harvest lots must be registered by a farmer account.');
         $validated = $request->validate([
             'crop_id' => ['required', 'exists:crops,id'],
             'origin_district_id' => ['required', 'exists:districts,id'],
             'farm_location_name' => ['nullable', 'string', 'max:255'],
             'harvest_date' => ['required', 'date', 'before_or_equal:today'],
-            'initial_quantity' => ['required', 'numeric', 'min:1', 'max:1000000'],
+            'initial_quantity' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
             'unit' => ['required', 'string', 'max:20'],
-            'initial_farmer_price' => ['required', 'numeric', 'min:0.01', 'max:100000'],
+            'initial_farmer_price' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:100000'],
             'origin_latitude' => ['nullable', 'numeric', 'between:20,27'],
             'origin_longitude' => ['nullable', 'numeric', 'between:88,93'],
             'notes' => ['nullable', 'string', 'max:1000'],

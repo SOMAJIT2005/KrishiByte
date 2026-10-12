@@ -1,0 +1,8 @@
+@extends('layouts.app')
+@section('title', 'My reports')
+@section('content')
+<div class="workspace-heading"><div><span class="eyebrow">YOUR WORKSPACE / REPORTS</span><h1>My reports</h1><p class="text-muted">Follow issues you submitted across the supply chain.</p></div><a class="btn btn-primary" href="{{ route('public.report') }}">Submit a report</a></div>
+<div class="card"><div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table"><table class="table mb-0"><thead><tr><th>Tracking code</th><th>Issue</th><th>Market</th><th>Status</th><th>Review / evidence</th></tr></thead><tbody>
+@forelse($reports as $report)<tr><td><a href="{{ route('public.report.track', ['code' => $report->tracking_code]) }}">{{ $report->tracking_code }}</a><small class="d-block text-muted">{{ $report->created_at->timezone('Asia/Dhaka')->format('d M Y') }}</small></td><td>{{ ucfirst($report->category) }} · {{ $report->crop->name }}<details class="small mt-2"><summary>Submission details</summary><p class="mt-2">{{ $report->report_narrative }}</p></details></td><td>{{ $report->market_name }}<small class="d-block">{{ $report->district->name }}</small></td><td><span class="badge bg-light text-dark border">{{ ucfirst($report->status) }}</span></td><td>{{ $report->moderation_notes ?: 'Awaiting review' }} @if($report->evidence_path)<a class="d-block" href="{{ route('reports.evidence', $report->id) }}" target="_blank" rel="noopener">Private evidence</a>@endif</td></tr>@empty<tr><td colspan="5" class="p-5 text-center">You haven’t submitted any reports yet. Report price, quantity, quality, or traceability concerns.</td></tr>@endforelse
+</tbody></table></div></div><div class="mt-3">{{ $reports->links() }}</div>
+@endsection

@@ -59,6 +59,7 @@ class AuthController extends Controller
      */
     public function demoLogin(string $role)
     {
+        abort_unless(app()->environment('local'), 404);
         $emailMap = [
             'admin' => 'admin@krishibyte.local',
             'authority' => 'authority@krishibyte.local',
@@ -69,15 +70,16 @@ class AuthController extends Controller
             'consumer' => 'consumer.tariq@krishibyte.local',
         ];
 
-        if (!isset($emailMap[$role])) {
+        if (! isset($emailMap[$role])) {
             return redirect()->route('login')->with('error', 'Invalid demo role.');
         }
 
         $user = User::where('email', $emailMap[$role])->first();
-        if (!$user) {
+        if (! $user) {
             return redirect()->route('login')->with('error', 'Demo user not found. Please run seeders.');
         }
 
+        abort_unless($user->account_status === 'active', 403);
         Auth::login($user);
         request()->session()->regenerate();
 
@@ -92,6 +94,7 @@ class AuthController extends Controller
         }
 
         $districts = District::orderBy('name')->get();
+
         return view('auth.register', compact('districts'));
     }
 
@@ -118,6 +121,7 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
+        abort_unless($user->account_status === 'active', 403);
         Auth::login($user);
 
         AuditLoggerService::log(

@@ -3,6 +3,7 @@
 @section('title', 'Market Monitoring Desk — KrishiByte')
 
 @section('content')
+<form method="GET" class="card card-body mb-4"><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label" for="chart-crop">Price progression by crop (BDT per {{ $selectedCrop?->unit }})</label><select class="form-select" id="chart-crop" name="crop_id">@foreach($crops as $crop)<option value="{{ $crop->id }}" @selected($crop->id === $selectedCrop?->id)>{{ $crop->name }}</option>@endforeach</select></div><div class="col-md-4"><button class="btn btn-primary">Apply crop filter</button></div></div></form>
 <div class="row g-3 mb-4 align-items-center">
     <div class="col-md-8">
         <div>
@@ -107,7 +108,7 @@
                 <div class="small" style="color: var(--kb-text-muted);">
                     <div class="mb-3">
                         <div class="fw-semibold mb-1" style="color: var(--kb-text);">Threshold Principle</div>
-                        <p>Configured markup caps serve as operational tripwires. Violations generate automated flags that lock a batch under administrative review until cleared by market investigators.</p>
+                        <p>Configured markup caps serve as operational tripwires. Threshold breaches generate flags for review. They do not prove wrongdoing or automatically freeze custody.</p>
                     </div>
                     <div>
                         <div class="fw-semibold mb-1" style="color: var(--kb-text);">Fair Assessment</div>
@@ -137,7 +138,7 @@
         </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table mb-0">
                 <thead>
                     <tr>
@@ -173,12 +174,12 @@
                             </td>
                             <td>
                                 <span class="fw-bold" style="color: var(--kb-danger); font-family: monospace;">
-                                    {{ number_format($flag->measured_value, 1) }}%
+                                    {{ number_format($flag->measured_value, 1) }}{{ $flag->reason_code === 'EXCESSIVE_SPREAD' ? ' BDT/'.$flag->transaction->unit : '%' }}
                                 </span>
                             </td>
                             <td>
                                 <span class="badge bg-light text-dark border" style="font-size: 0.6875rem;">
-                                    {{ number_format($flag->threshold_value, 1) }}%
+                                    {{ number_format($flag->threshold_value, 1) }}{{ $flag->reason_code === 'EXCESSIVE_SPREAD' ? ' BDT/'.$flag->transaction->unit : '%' }}
                                 </span>
                             </td>
                             <td>
@@ -192,7 +193,7 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button type="button" class="btn btn-sm btn-outline-primary" style="border-radius: 0.375rem; color: var(--kb-primary); border-color: var(--kb-primary);" onclick="openReviewModal({{ $flag->id }}, '{{ $flag->batch->batch_code }}', '{{ $flag->status }}', '{{ addslashes($flag->reviewer_notes ?? '') }}')">
+                                <button type="button" class="btn btn-sm btn-outline-primary" style="border-radius: 0.375rem; color: var(--kb-primary); border-color: var(--kb-primary);" data-id="{{ $flag->id }}" data-code="{{ $flag->batch->batch_code }}" data-status="{{ $flag->status }}" data-notes="{{ $flag->reviewer_notes }}" onclick="openReviewModal(this.dataset.id, this.dataset.code, this.dataset.status, this.dataset.notes)">
                                     <i class="bi bi-clipboard-check me-1"></i> Review
                                 </button>
                             </td>
@@ -224,9 +225,9 @@
         <div>
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-megaphone fs-5" style="color: var(--kb-warning);"></i>
-                <span class="section-title mb-0">Citizen Price-Gouging Reports</span>
+                <span class="section-title mb-0">Supply Chain Reports</span>
             </div>
-            <div class="section-subtitle">Field reports submitted by consumers from kitchen markets</div>
+            <div class="section-subtitle">Price, quantity, quality, and traceability concerns from all roles</div>
         </div>
         <div class="d-flex gap-1 flex-wrap">
             <a href="{{ route('authority.dashboard') }}" class="btn btn-sm px-3 py-1 d-inline-flex align-items-center" {{ !$reportFilter ? 'style="background: var(--kb-primary); color: #fff; border-color: var(--kb-primary);"' : 'style="background: var(--kb-bg); color: var(--kb-text); border-color: var(--kb-border);"' }}>All</a>
@@ -236,7 +237,7 @@
         </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table mb-0">
                 <thead>
                     <tr>
@@ -254,7 +255,7 @@
                     @forelse($reports as $rpt)
                         <tr>
                             <td>
-                                <code class="fw-bold" style="color: var(--kb-text); font-family: monospace;">{{ $rpt->tracking_code }}</code>
+                                <code class="fw-bold" style="color: var(--kb-text); font-family: monospace;">{{ $rpt->tracking_code }} <small class="d-block text-muted">{{ ucfirst($rpt->category) }}</small></code>
                             </td>
                             <td>
                                 <strong>{{ $rpt->crop->name }}</strong>
@@ -265,19 +266,19 @@
                             </td>
                             <td>
                                 <span class="fw-bold" style="color: var(--kb-danger); font-family: monospace;">
-                                    ৳ {{ number_format($rpt->reported_price, 2) }}
+                                    {{ $rpt->reported_price !== null ? 'BDT '.number_format($rpt->reported_price, 2) : 'Not supplied' }}
                                 </span>
                                 <small class="text-muted d-block" style="font-size: 0.6875rem;">/ {{ $rpt->unit }}</small>
                             </td>
                             <td style="max-width: 200px;">
-                                <div class="small text-truncate" title="{{ $rpt->report_narrative }}" style="color: var(--kb-text);">
+                                <details class="small" style="color: var(--kb-text);"><summary>Read report</summary><div class="mt-2">
                                     {{ $rpt->report_narrative }}
-                                </div>
+                                </div></details>
                             </td>
                             <td><small class="text-muted">{{ $rpt->incident_date->format('d M Y') }}</small></td>
                             <td>
                                 @if($rpt->evidence_path)
-                                    <a href="{{ asset('storage/' . $rpt->evidence_path) }}" target="_blank" class="btn btn-sm btn-outline-info" style="color: var(--kb-info); border-color: var(--kb-info); border-radius: 0.375rem;">
+                                    <a href="{{ route('reports.evidence', $rpt->id) }}" target="_blank" class="btn btn-sm btn-outline-info" style="color: var(--kb-info); border-color: var(--kb-info); border-radius: 0.375rem;">
                                         <i class="bi bi-image me-1"></i> View
                                     </a>
                                 @else
@@ -290,7 +291,7 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button type="button" class="btn btn-sm btn-outline-primary" style="border-radius: 0.375rem; color: var(--kb-primary); border-color: var(--kb-primary);" onclick="openModerateModal({{ $rpt->id }}, '{{ $rpt->tracking_code }}', '{{ $rpt->status }}', '{{ addslashes($rpt->moderation_notes ?? '') }}')">
+                                <button type="button" class="btn btn-sm btn-outline-primary" style="border-radius: 0.375rem; color: var(--kb-primary); border-color: var(--kb-primary);" data-id="{{ $rpt->id }}" data-code="{{ $rpt->tracking_code }}" data-status="{{ $rpt->status }}" data-notes="{{ $rpt->moderation_notes }}" onclick="openModerateModal(this.dataset.id, this.dataset.code, this.dataset.status, this.dataset.notes)">
                                     <i class="bi bi-pencil-square me-1"></i> Moderate
                                 </button>
                             </td>
@@ -366,7 +367,7 @@
                 @csrf
                 <div class="modal-header" style="background: var(--kb-warning); color: #1e293b;">
                     <h5 class="modal-title fw-bold">
-                        <i class="bi bi-pencil-square me-1"></i> Moderate Consumer Price Report
+                        <i class="bi bi-pencil-square me-1"></i> Review Supply Chain Report
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -412,7 +413,7 @@
                     labels: @json($chartLabels),
                     datasets: [
                         {
-                            label: 'Average Price (BDT/kg)',
+                            label: @json('Average price (BDT/'.($selectedCrop?->unit ?? 'unit').')'),
                             data: @json($chartPrices),
                             backgroundColor: 'rgba(25, 135, 84, 0.8)',
                             borderColor: 'rgb(25, 135, 84)',

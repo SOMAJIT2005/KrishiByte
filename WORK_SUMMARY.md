@@ -2,7 +2,7 @@
 
 **Project Root:** `D:\KrishiByte`  
 **Generated At:** 2026-10-12  
-**Status:** MVP Fully Implemented, Migrated, Seeded, Tested & Verified Locally  
+**Status:** Upgraded and verified locally; see the 12 October 2026 upgrade section below. Earlier sections describe the original build and are superseded where they conflict.
 
 ---
 
@@ -296,3 +296,130 @@ php artisan config:clear
 
 ### Outstanding Issues
 - None identified. All 25 automated tests pass and all live pages verified working.
+
+
+## 12 October 2026 — Requested project upgrade and verification record
+
+This section records the changes made during this session and supersedes conflicting statements in the original build summary above, including the old 25-test result and fixed four-stage workflow. The supplied project snapshot, implementation plan and original work summary were read as reference material; the user's requested updates determined the implementation scope.
+
+### 1. Admin verification badges
+
+- Added account verification fields, verification date, reviewer and reason.
+- Admins can grant or revoke badges for farmers, collectors, wholesalers and retail shops. Granting requires an active account; both decisions require a reason and create an audit record.
+- Badges appear in participant details, public custody timelines and account navigation. Suspended accounts do not display an active verification badge.
+- Account verification is separate from batch verification and does not certify crop quality.
+- Repaired admin dashboard, batch review list and detail pages, duplicated controller methods and conflicting routes.
+- Batch rejection now persists and hides rejected batches from public traceability. Verification/rejection and their audit records are saved atomically, with the actual previous status.
+
+### 2. Farmer-to-retail supply chain
+
+- Farmers can register harvest lots and record their first handoff; collectors can record collection directly from a farmer.
+- Enabled farmer → collector → additional collectors/wholesalers → retailer → consumer, including collector-to-collector and wholesaler-to-wholesaler transfers.
+- Preserved the original farmer and harvest details throughout the journey. Each transaction records seller, buyer, quantity, unit, price, total, location, time and sequence.
+- The service derives the transaction stage from participant roles and validates current custody, active accounts, stock, price and quantity.
+- Intermediate transfers move the entire remaining lot. Partial retail sales reduce stock while the retailer retains custody; selling all stock marks the lot sold out.
+- Corrected acquisition-price selection so successive retail sales use the purchase cost rather than a previous retail sale price.
+- Transaction, stock, custody, flags and audit changes are atomic. Only the latest active transaction can be reversed by its recorder or an admin with a reason.
+- Reversal restores custody/stock and clears associated review flags without deleting the original transaction. Sequence numbers remain unique after voiding and recording a replacement.
+
+### 3. Reporting for all roles
+
+- Added price, quantity, quality and traceability concern categories, with optional batch context.
+- Guests and all authenticated roles can submit reports. Authenticated users have a My reports page restricted to their own reports.
+- Price is required only for price concerns; a quality concern can be submitted without a price.
+- Evidence images are validated and stored privately with random filenames and trusted MIME-derived extensions. Only the owner and authority/admin reviewers can retrieve them.
+- Public tracking shows a safe summary without private narrative, contact details, evidence or moderator notes.
+- Added submission throttling and duplicate detection.
+- Moderation locks the report and updates one uniquely linked price observation. Rejection/duplicate decisions withdraw the observation; re-verification restores it without multiplying samples. Non-price concerns never become price observations.
+- Added `php artisan reports:secure-evidence` to move legacy public evidence safely to private storage. The local run found no legacy images.
+- Replaced unsafe inline note handlers with escaped data attributes; moderator notes containing apostrophes were tested live.
+
+### 4. UI and useful improvements
+
+- Added shared green/cream styling, refined cards and navigation, improved typography, keyboard focus, a skip link and reduced-motion support.
+- Refined public home, prices, traceability and report pages, plus admin, farmer, vendor and authority workspaces through shared styling and targeted changes.
+- Added collector farm-gate collection forms, automatic stage selection, acquisition-cost previews and clear whole-lot transfer instructions.
+- Wide tables scroll within accessible containers. Mobile navigation was checked at 375 pixels.
+- Public journey displays repeated intermediaries and participant badges. Map popup text is handled safely; unavailable map scripts have a fallback.
+- Transaction/report timestamps display Asia/Dhaka while stored timestamps remain UTC; historical values were not shifted.
+- Demo content is labeled illustrative. Removed incorrect claims that review flags automatically freeze trading.
+- Market references compare crop, district, date and unit. Fewer than three verified samples yield no indicative reference; three/four use the median and five or more use a 20% trimmed mean.
+- Authority charts filter by crop and unit. Added absolute-spread flags alongside markup-percentage rules and deterministic selection of specific/newer rules.
+
+### 5. Bug fixes, setup and data handling
+
+- Removed duplicated/broken service and controller definitions that prevented normal execution.
+- Replaced corrupted batch/transaction demo seeding with a repeatable multi-intermediary scenario. Seeders preserve existing account credentials, rule settings and existing demo records.
+- Fixed stale latest-price ordering, retail stock/cost calculations, void sequence reuse, unsaved batch rejection, missing admin views and cross-unit comparisons.
+- Added two upgrade migrations: account verification/report context, and nullable prices for non-price reports. All 16 migrations are recorded as applied locally.
+- Removed `.env` from the Git index and ignored local secrets/build/runtime files; the local `.env` remains intact. Previous Git history still contains the old file and needs credential/history handling before public sharing.
+- No application database reset, dependency addition, commit or public deployment was performed.
+- Original source/document backups are at `D:\KrishiByte-backup-20261012`.
+
+### 6. Automated test results
+
+**Full suite: 36 tests passed, 155 assertions.** It passed on both `krishibyte_test` and freshly migrated/seeded `krishibyte_upgrade_qa`.
+
+```powershell
+php -d memory_limit=256M vendor/bin/phpunit
+```
+
+Added `tests/Feature/UpgradeWorkflowTest.php` with coverage for:
+
+1. Repeated intermediaries, retail stock conservation, acquisition cost, sell-out and reversal.
+2. Rejection of partial intermediate custody transfers without mutation.
+3. Rejection of reversing an older handoff after a downstream transfer.
+4. Admin badge authorization, auditing and prevention of self-assigned badges.
+5. Private evidence access and owner-only report history.
+6. Re-review updating one observation and withdrawing an invalid sample.
+7. Rendering all role workspaces and admin batch review pages.
+8. Collector farm-gate collection and rejection of unauthorized retail collection.
+9. Quality reports without prices and without price observations.
+10. Absolute-spread rules flagging transactions below the percentage cap.
+11. Persistent batch rejection, hidden public trace, and later verification.
+
+Existing authentication, registration/RBAC, public/report, custody and calculation tests also passed. Updated reference-price tests to reflect the minimum sample requirement.
+
+Additional verification:
+
+- Fresh migration and seeding succeeded; repeating the seed preserved fresh-QA counts: 9 users, 4 batches, 9 transactions, 3 reports, 15 observations and 6 rules.
+- PHP source lint, focused Pint formatting, Blade compilation (`php artisan view:cache`) and `git diff --check` passed.
+- After the final batch-review locking adjustment, its focused regression test passed again (1 test, 5 assertions).
+- One combined setup/test attempt hit a Windows paging/VirtualAlloc failure. Retrying PHPUnit with the explicit 256 MB memory limit passed.
+
+### 7. Live website and responsive tests
+
+Tested the actual local website at http://127.0.0.1:8000 using the PHP development server backed by WAMP MySQL.
+
+| Live check | Observed result |
+| --- | --- |
+| Admin verification | Farmer badge granted; badge and audit record displayed. |
+| Collector collection | Collected `KB-20261012-CHI004` from the farmer at the agreed price. |
+| Repeated intermediary | Transferred that lot from one collector to another collector. |
+| Public provenance | Potato journey displayed five intermediary transfers, original farmer and prices. |
+| Quality report | Submitted without price; appeared in owner history and safe public tracking. |
+| Authority moderation | Rejected the QA report with an apostrophe-containing private note; decision persisted and notes dialog worked. |
+| Retail sale | Sold 2 kg of `KB-20261010-POT001`; stock changed from 2,500 to 2,498 kg. |
+| Sale reversal | Restored stock to 2,500 kg and retained the voided transaction history. |
+| Route smoke checks | 17 key route visits completed without application exceptions; all seven role workspaces were exercised. |
+| Mobile layout | Home, reporting, admin, vendor and trace pages checked at 375×812; navigation worked and body width stayed within the viewport. |
+| Desktop layout | Final navigation and home inspected at 1440×1000; screenshots saved. |
+| Browser errors | No console errors appeared in the checked interaction flows. |
+
+Live QA intentionally leaves demo records: farmer verification/audit, chili collection and onward transfer, quality report `RPT-20261012-HTCT3D`, and the voided retail sale. They are demonstrations, not real trade.
+
+Screenshots saved:
+
+- `docs/screenshots/home-desktop.jpg`
+- `docs/screenshots/home-mobile.jpg`
+- `docs/screenshots/batch-journey-desktop.jpg`
+
+### 8. Current boundaries and handoff
+
+- A lot has one custodian. Intermediate custody transfers move the whole lot; partial retail sales work. Split/merge inventory and loss accounting require a future model.
+- GPS is optional user-provided location, not continuous tracking. SMS remains the existing mock/log adapter.
+- External map tiles and frontend CDNs require connectivity.
+- The website was tested locally, not publicly deployed. These are representative functional checks, not exhaustive security, load or every-browser certification.
+- Restart the local website, when needed, with `php -S 127.0.0.1:8000 -t public` while WAMP MySQL is running.
+
+Updated supporting documents: `README.md`, `docs/ARCHITECTURE.md`, `docs/ENVIRONMENT.md`, and `docs/TESTING.md`.

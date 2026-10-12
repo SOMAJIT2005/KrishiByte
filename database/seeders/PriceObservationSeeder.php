@@ -51,13 +51,13 @@ class PriceObservationSeeder extends Seeder
         ];
 
         foreach ($observations as $obs) {
-            PriceObservation::create(array_merge($obs, [
+            PriceObservation::firstOrCreate($obs, [
                 'unit' => 'kg',
                 'source' => 'verified_market_survey',
                 'verification_status' => 'verified',
                 'entered_by_user_id' => $authority?->id,
-                'notes' => 'Surveyed by Directorate of Agricultural Marketing (DAM) field monitor.',
-            ]));
+                'notes' => 'Illustrative demo survey; not an official government observation.',
+            ]);
         }
     }
 }

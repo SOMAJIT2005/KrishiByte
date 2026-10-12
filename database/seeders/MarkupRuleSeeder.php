@@ -12,7 +12,9 @@ class MarkupRuleSeeder extends Seeder
     public function run(): void
     {
         $admin = User::where('role', 'admin')->first();
-        if (!$admin) return;
+        if (! $admin) {
+            return;
+        }
 
         $potato = Crop::where('name', 'like', '%Potato%')->first();
         $onion = Crop::where('name', 'like', '%Onion%')->first();
@@ -80,7 +82,7 @@ class MarkupRuleSeeder extends Seeder
         ];
 
         foreach ($rules as $r) {
-            MarkupRule::create($r);
+            MarkupRule::firstOrCreate(['crop_id' => $r['crop_id'], 'stage' => $r['stage']], $r);
         }
     }
 }

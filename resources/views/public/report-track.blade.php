@@ -40,15 +40,15 @@
                             </div>
                             <div class="col-md-6">
                                 <span class="text-muted small d-block">Observed Price:</span>
-                                <span class="fs-5 fw-bold text-danger">৳ {{ number_format($report->reported_price, 2) }}</span> / {{ $report->unit }}
+                                <span class="fs-5 fw-bold text-danger">{{ $report->reported_price !== null ? 'BDT '.number_format($report->reported_price, 2) : 'Not supplied' }}</span> / {{ $report->unit }}
                             </div>
                             <div class="col-md-6">
                                 <span class="text-muted small d-block">Submission Date:</span>
-                                <span>{{ $report->created_at->format('d M Y, h:i A') }}</span>
+                                <span>{{ $report->created_at->timezone('Asia/Dhaka')->format('d M Y, h:i A') }}</span>
                             </div>
                             <div class="col-12">
                                 <span class="text-muted small d-block">Report Description:</span>
-                                <div class="p-3 bg-light rounded text-secondary">{{ $report->report_narrative }}</div>
+                                <div class="p-3 bg-light rounded text-secondary">Details are private to the submitter and review team.</div>
                             </div>
                         </div>
 
@@ -61,19 +61,13 @@
                             </div>
                         @elseif($report->status === 'verified')
                             <div class="alert alert-success mb-0">
-                                <i class="bi bi-check-circle-fill me-1"></i> <strong>Verified:</strong> An enforcement officer inspected this report. 
-                                @if($report->moderation_notes)
-                                    <div class="mt-2 text-dark"><strong>Officer Notes:</strong> {{ $report->moderation_notes }}</div>
-                                @endif
+                                <i class="bi bi-check-circle-fill me-1"></i> <strong>Verified:</strong> The review team has verified this report.
+
                             </div>
                         @else
                             <div class="alert alert-secondary mb-0">
                                 <i class="bi bi-x-circle me-1"></i> <strong>{{ ucfirst($report->status) }}:</strong>
-                                @if($report->moderation_notes)
-                                    <span class="ms-1">{{ $report->moderation_notes }}</span>
-                                @else
-                                    This report could not be substantiated during field review.
-                                @endif
+
                             </div>
                         @endif
                     </div>

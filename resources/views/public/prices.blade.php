@@ -85,7 +85,7 @@
                             </span>
                         @else
                             <span class="badge bg-secondary-subtle text-secondary border px-3 py-2">
-                                No Verified Samples
+                                Insufficient Verified Samples
                             </span>
                         @endif
                     </div>
@@ -122,7 +122,7 @@
                 @else
                     <div class="p-4 rounded bg-light border text-center" style="border-color: var(--kb-border);">
                         <i class="bi bi-data-warning d-block fs-1 mb-2" style="color: var(--kb-text-muted);"></i>
-                        <p class="mb-0 text-muted">No verified price observations found for this selection. Field monitors will update market rates during regular survey rounds.</p>
+                        <p class="mb-0 text-muted">Insufficient verified data: {{ $referenceStats['sample_count'] }} observation(s). At least 3 comparable observations are needed to calculate a reference price.</p>
                     </div>
                 @endif
             </div>
@@ -166,7 +166,7 @@
         </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table mb-0">
                 <thead>
                     <tr>

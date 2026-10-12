@@ -23,6 +23,7 @@ class User extends Authenticatable
         'nid_or_trade_license',
         'district_id',
         'password',
+        'is_verified', 'verified_by_user_id', 'verification_date', 'verification_reason',
     ];
 
     protected $hidden = [
@@ -34,6 +35,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_verified' => 'boolean', 'verification_date' => 'datetime',
             'password' => 'hashed',
         ];
     }

@@ -21,7 +21,7 @@
         <span class="badge bg-light text-dark border">{{ $logs->total() }} Events Logged</span>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>

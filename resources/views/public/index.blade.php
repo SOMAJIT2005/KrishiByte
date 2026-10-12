@@ -12,10 +12,10 @@
             </span>
         </div>
         <h1 class="display-5 fw-bold mb-3" style="color: var(--kb-text);">
-            Track Crop Prices, Prevent Gouging, Verify Every Handoff.
+            Every harvest has a story. Follow it to market.
         </h1>
         <p class="lead text-muted mb-4" style="font-size: 1.1rem;">
-            KrishiByte brings end-to-end auditability to Bangladesh's agricultural markets. From northern grower fields in Bogura and Dinajpur to retail kitchen markets in Dhaka and Chattogram, follow batch prices, identify artificial markups, and empower fair trade.
+            KrishiByte brings end-to-end auditability to Bangladesh's agricultural markets. From northern grower fields in Bogura and Dinajpur to retail kitchen markets in Dhaka and Chattogram, follow batch prices, review price changes, and empower fair trade.
         </p>
         <div class="d-flex flex-wrap gap-3">
             <a href="{{ route('public.prices') }}" class="btn btn-lg px-4 py-2" style="background: var(--kb-primary); border-color: var(--kb-primary); color: #fff;">
@@ -38,7 +38,7 @@
                     </div>
                     <div>
                         <h6 class="fw-bold mb-0" style="color: var(--kb-text);">Live Network Activity</h6>
-                        <span class="small text-muted">Real-time platform statistics</span>
+                        <span class="small text-muted">Recorded activity · illustrative demo data</span>
                     </div>
                 </div>
                 <div class="row g-3">
@@ -94,7 +94,7 @@
         <div class="d-flex align-items-center justify-content-between mb-3">
             <div>
                 <h2 class="fw-bold mb-0" style="color: var(--kb-text);">How KrishiByte Works</h2>
-                <p class="text-muted small">Standardized 4-stage custody chain with server-enforced markup evaluation</p>
+                <p class="text-muted small">Flexible custody chain with repeated collectors and wholesalers, quantity tracking, and price review</p>
             </div>
         </div>
     </div>
@@ -124,7 +124,7 @@
                     <div>
                         <span class="small text-muted d-block mb-1" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Stage 2</span>
                         <h6 class="fw-bold mb-1" style="color: var(--kb-text);">Faria / Collector</h6>
-                        <p class="small text-muted mb-0" style="font-size: 0.8125rem;">Local collectors record handoff price, sorting cost, and bag transfer from rural mokams.</p>
+                        <p class="small text-muted mb-0" style="font-size: 0.8125rem;">Collectors record agreed purchase prices and onward transfers. More than one collector can handle a lot.</p>
                     </div>
                 </div>
             </div>
@@ -140,7 +140,7 @@
                     <div>
                         <span class="small text-muted d-block mb-1" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Stage 3</span>
                         <h6 class="fw-bold mb-1" style="color: var(--kb-text);">Wholesale Arat</h6>
-                        <p class="small text-muted mb-0" style="font-size: 0.8125rem;">Wholesalers receive shipments, recording transport margins and supply lots to retail buyers.</p>
+                        <p class="small text-muted mb-0" style="font-size: 0.8125rem;">Regional wholesalers record each purchase and sale before passing lots to another distributor or retailer.</p>
                     </div>
                 </div>
             </div>
@@ -178,7 +178,7 @@
                 </a>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
                     <table class="table mb-0">
                         <thead>
                             <tr>

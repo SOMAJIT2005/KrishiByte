@@ -18,8 +18,7 @@ class PriceReportSeeder extends Seeder
         $authority = User::where('role', 'authority')->first();
 
         // 1. Pending report (waiting for authority review)
-        PriceReport::create([
-            'tracking_code' => 'RPT-20261012-ON001',
+        PriceReport::firstOrCreate(['tracking_code' => 'RPT-20261012-ON001'], [
             'reporter_name' => 'Tariqul Islam',
             'reporter_phone' => '+8801715000005',
             'reporter_email' => 'consumer.tariq@krishibyte.local',
@@ -38,8 +37,7 @@ class PriceReportSeeder extends Seeder
         ]);
 
         // 2. Verified report
-        PriceReport::create([
-            'tracking_code' => 'RPT-20261011-PO002',
+        PriceReport::firstOrCreate(['tracking_code' => 'RPT-20261011-PO002'], [
             'reporter_name' => 'M. Alam',
             'reporter_phone' => '+8801819000008',
             'reporter_email' => 'm.alam@example.com',
@@ -59,8 +57,7 @@ class PriceReportSeeder extends Seeder
         ]);
 
         // 3. Rejected report
-        PriceReport::create([
-            'tracking_code' => 'RPT-20261009-RE003',
+        PriceReport::firstOrCreate(['tracking_code' => 'RPT-20261009-RE003'], [
             'reporter_name' => 'Anonymous',
             'reporter_phone' => null,
             'reporter_email' => null,

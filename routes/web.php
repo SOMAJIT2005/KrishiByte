@@ -18,7 +18,11 @@ Route::get('/prices', [PublicController::class, 'prices'])->name('public.prices'
 Route::get('/traceability', [PublicController::class, 'traceability'])->name('public.traceability');
 Route::get('/traceability/{batch_code}', [PublicController::class, 'traceabilityShow'])->name('public.traceability.show');
 Route::get('/report', [PublicController::class, 'reportForm'])->name('public.report');
-Route::post('/report', [PublicController::class, 'reportStore'])->name('public.report.store');
+Route::post('/report', [PublicController::class, 'reportStore'])->middleware('throttle:10,1')->name('public.report.store');
+Route::middleware('role:admin,authority,farmer,collector,wholesale,retail,consumer')->group(function () {
+    Route::get('/my-reports', [PublicController::class, 'myReports'])->name('reports.mine');
+    Route::get('/reports/{id}/evidence', [PublicController::class, 'evidence'])->name('reports.evidence');
+});
 Route::get('/report/track', [PublicController::class, 'trackReport'])->name('public.report.track');
 Route::get('/faq', [PublicController::class, 'faq'])->name('public.faq');
 
@@ -28,7 +32,7 @@ Route::get('/faq', [PublicController::class, 'faq'])->name('public.faq');
 |--------------------------------------------------------------------------
 */
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.post');
 Route::get('/demo-login/{role}', [AuthController::class, 'demoLogin'])->name('demo.login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->name('register.post');
@@ -41,6 +45,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 */
 Route::middleware(['role:farmer'])->prefix('farmer')->name('farmer.')->group(function () {
     Route::get('/dashboard', [FarmerController::class, 'dashboard'])->name('dashboard');
+    Route::get('/handoff', [VendorController::class, 'dashboard'])->name('handoff');
+    Route::post('/handoff', [VendorController::class, 'storeHandoff'])->name('handoff.store');
     Route::post('/batches', [FarmerController::class, 'storeBatch'])->name('batches.store');
 });
 
@@ -50,6 +56,7 @@ Route::middleware(['role:farmer'])->prefix('farmer')->name('farmer.')->group(fun
 |--------------------------------------------------------------------------
 */
 Route::middleware(['role:collector,wholesale,retail'])->prefix('vendor')->name('vendor.')->group(function () {
+    Route::post('/collect', [VendorController::class, 'storeCollection'])->name('collect');
     Route::get('/dashboard', [VendorController::class, 'dashboard'])->name('dashboard');
     Route::post('/handoff', [VendorController::class, 'storeHandoff'])->name('handoff.store');
     Route::post('/transactions/{id}/void', [VendorController::class, 'voidTransaction'])->name('transactions.void');
@@ -73,20 +80,13 @@ Route::middleware(['role:authority'])->prefix('authority')->name('authority.')->
 */
 Route::middleware(['role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+    Route::post('/users/{id}/verify', [AdminController::class, 'verifyUser'])->name('users.verify');
     Route::post('/users/{id}/toggle', [AdminController::class, 'toggleUserStatus'])->name('users.toggle');
     Route::post('/rules', [AdminController::class, 'storeRule'])->name('rules.store');
     Route::post('/rules/{id}/toggle', [AdminController::class, 'toggleRule'])->name('rules.toggle');
     Route::get('/audit-logs', [AdminController::class, 'auditLogs'])->name('audit-logs');
-    Route::get('/batches/verification', [AdminController::class, 'batchVerificationIndex'])->name('admin.batches.verification');
-    Route::get('/batches/{batchId}', [AdminController::class, 'batchDetail'])->name('admin.batches.detail');
-    Route::post('/batches/{batchId}/verify', [AdminController::class, 'verifyBatch'])->name('admin.batches.verify');
-    Route::post('/batches/{batchId}/reject', [AdminController::class, 'rejectBatch'])->name('admin.batches.reject');
-    Route::get('/batches/verification', [AdminController::class, 'batchVerificationIndex'])->name('admin.batches.verification');
-    Route::get('/batches/{batchId}', [AdminController::class, 'batchDetail'])->name('admin.batches.detail');
-    Route::post('/batches/{batchId}/verify', [AdminController::class, 'verifyBatch'])->name('admin.batches.verify');
-    Route::post('/batches/{batchId}/reject', [AdminController::class, 'rejectBatch'])->name('admin.batches.reject');
-    Route::get('/batches/verification', [AdminController::class, 'batchVerificationIndex'])->name('admin.batches.verification');
-    Route::get('/batches/{batchId}', [AdminController::class, 'batchDetail'])->name('admin.batches.detail');
-    Route::post('/batches/{batchId}/verify', [AdminController::class, 'verifyBatch'])->name('admin.batches.verify');
-    Route::post('/batches/{batchId}/reject', [AdminController::class, 'rejectBatch'])->name('admin.batches.reject');
+    Route::get('/batches/verification', [AdminController::class, 'batchVerificationIndex'])->name('batches.verification');
+    Route::get('/batches/{batchId}', [AdminController::class, 'batchDetail'])->name('batches.detail');
+    Route::post('/batches/{batchId}/verify', [AdminController::class, 'verifyBatch'])->name('batches.verify');
+    Route::post('/batches/{batchId}/reject', [AdminController::class, 'rejectBatch'])->name('batches.reject');
 });

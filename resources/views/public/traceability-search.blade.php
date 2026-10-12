@@ -52,7 +52,7 @@
                 </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
                     <table class="table mb-0">
                         <thead>
                             <tr>

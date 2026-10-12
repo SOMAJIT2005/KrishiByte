@@ -33,16 +33,18 @@ class AnomalyDetectionService
             })
             ->orderByRaw('crop_id IS NOT NULL DESC')
             ->orderByRaw("stage != 'all' DESC")
+            ->latest('id')
             ->first();
 
-        if (!$rule) {
+        if (! $rule) {
             return null;
         }
 
         $threshold = (float) $rule->max_markup_percent;
         $measured = (float) $transaction->markup_percent;
 
-        if ($measured > $threshold) {
+        $spreadExceeded = $rule->max_spread_amount !== null && (float) $transaction->gross_price_spread > (float) $rule->max_spread_amount;
+        if ($measured > $threshold || $spreadExceeded) {
             $excess = $measured - $threshold;
             $severity = 'low';
             if ($excess >= 40) {
@@ -56,9 +58,9 @@ class AnomalyDetectionService
                 'transaction_id' => $transaction->id,
                 'user_id' => $transaction->seller_id,
                 'rule_id' => $rule->id,
-                'reason_code' => 'EXCESSIVE_MARKUP',
-                'measured_value' => $measured,
-                'threshold_value' => $threshold,
+                'reason_code' => $measured > $threshold ? 'EXCESSIVE_MARKUP' : 'EXCESSIVE_SPREAD',
+                'measured_value' => $measured > $threshold ? $measured : $transaction->gross_price_spread,
+                'threshold_value' => $measured > $threshold ? $threshold : $rule->max_spread_amount,
                 'severity' => $severity,
                 'status' => 'new',
             ]);
@@ -80,7 +82,7 @@ class AnomalyDetectionService
             // Notify seller under observation
             Notification::create([
                 'user_id' => $transaction->seller_id,
-                'title' => "Transaction Notice: Review Required",
+                'title' => 'Transaction Notice: Review Required',
                 'message' => "Your transaction on batch {$batch->batch_code} has been marked for review due to price spread of {$measured}%.",
                 'link' => '/vendor/dashboard',
             ]);

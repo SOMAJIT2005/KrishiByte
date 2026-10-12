@@ -3,6 +3,7 @@
 @section('title', 'Farmer Dashboard — KrishiByte')
 
 @section('content')
+<div class="d-flex justify-content-end mb-3"><a class="btn btn-outline-primary" href="{{ route('farmer.handoff') }}">Transfer a harvest to a collector →</a></div>
 <div class="row g-3 mb-4 align-items-center">
     <div class="col-md-8">
         <div>
@@ -110,7 +111,7 @@
         </a>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table mb-0">
                 <thead>
                     <tr>

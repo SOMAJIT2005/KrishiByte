@@ -1,96 +1,35 @@
-# KrishiByte — Verification & Acceptance Test Matrix
+# Verification — 12 October 2026
 
-**Execution Date:** 2026-10-12  
-**Test Suite Status:** 25 Passed, 0 Failed (83 Assertions)  
-**Database Drivers Tested:** MySQL 8.0.46 via Wampserver (Primary: `krishibyte`, Testing: `krishibyte_test`)  
+## Automated checks
 
----
-
-## 1. Automated Test Execution
+Final suite: **36 tests passed, 155 assertions** on `krishibyte_test`. The same suite passed on a freshly migrated and seeded `krishibyte_upgrade_qa` database. Re-running the seeders preserved counts: 9 users, 4 batches, 9 transactions, 3 reports, 15 observations and 6 rules on fresh QA before rolled-back tests.
 
 ```powershell
-php artisan test
+php -d memory_limit=256M vendor/bin/phpunit
 ```
 
-### Result Output
+A transient Windows paging/VirtualAlloc failure occurred during one combined fresh-install run. Retrying with the explicit 256 MB PHP memory limit completed successfully.
 
-```
-   PASS  Tests\Unit\CalculationServiceTest
-  ✓ gross price spread calculation
-  ✓ markup percent on cost
-  ✓ gross margin percent on sale price
-  ✓ reference price handles insufficient samples
-  ✓ reference price median for medium samples
-  ✓ reference price trimmed mean for high sample count
+Covered behavior includes authentication/RBAC, privileged registration rejection, public searches, reference-price sample rules, farmer workflows, repeated collector/wholesaler custody, conserved retail stock, acquisition cost, sold-out/reversal behavior, void sequence preservation, unauthorized and stale reversals, badge authorization/auditing, private evidence, report owner isolation, all role pages, idempotent moderation, non-price reports, absolute-spread thresholds, batch rejection and restoration.
 
-   PASS  Tests\Unit\ExampleTest
-  ✓ that true is true
+PHP source lint, Blade view compilation and focused Pint formatting passed. No new dependencies were introduced.
 
-   PASS  Tests\Feature\AuthorityAndRbacTest
-  ✓ authority reviews anomaly flag
-  ✓ authority moderates consumer report and creates verified observation
-  ✓ farmer is forbidden from authority dashboard
-  ✓ registration prohibits self assigning admin or authority
+## Live local browser checks
 
-   PASS  Tests\Feature\BatchAndHandoffTest
-  ✓ farmer creates valid batch
-  ✓ farmer submits invalid negative price or quantity
-  ✓ current custodian records valid handoff
-  ✓ non custodian attempt handoff is rejected
-  ✓ quantity exceeding available is rejected
-  ✓ self trade is rejected
-  ✓ markup above threshold generates anomaly flag
-  ✓ authorized void restores previous custody
+Tested at http://127.0.0.1:8000 using the running PHP server and WAMP database:
 
-   PASS  Tests\Feature\ExampleTest
-  ✓ the application returns a successful response
+- Admin granted a farmer badge and checked batch review/audit pages.
+- Collector recorded farm-gate collection of `KB-20261012-CHI004`, then transferred it to another collector.
+- Submitted a quality report without price, found it in owner history and public tracking, and rejected it as an authority with an apostrophe in the private note.
+- Retailer sold 2 kg of `KB-20261010-POT001`; stock dropped to 2,498 kg. Reversing the sale restored 2,500 kg and retained the voided record.
+- Inspected public multi-intermediary trace, report forms, prices, and workspaces for all seven roles. Checked 17 key route visits without application exceptions.
+- At 375×812, inspected home, report, admin, vendor and batch trace; navigation worked and body width stayed within the viewport. Wide tables scroll inside their containers.
+- At 1440×1000, inspected final navigation and homepage. Checked browser error logs during the interaction flows; no errors appeared in those checks.
 
-   PASS  Tests\Feature\PublicAndReportTest
-  ✓ guest can access all public views
-  ✓ guest opening private dashboards redirected to login
-  ✓ consumer submits valid price report
-  ✓ unsafe or oversized file upload is rejected
-  ✓ track report status shows accurate outcome
+Live QA leaves clearly labeled demo records: farmer verification audit, the chili collection/onward transfer, report `RPT-20261012-HTCT3D`, and the voided retail sale. They demonstrate the workflows and should not be interpreted as real trade.
 
-  Tests:    25 passed (83 assertions)
-  Duration: 4.25s
-```
+Screenshots are in `docs/screenshots`. These checks exercise representative flows; they do not claim exhaustive security, load, production-hosting, or every-browser coverage.
 
----
+## Known limits
 
-## 2. Minimum Acceptance Test Matrix (AT-01 to AT-20)
-
-| ID | Scenario | Expected Result | Verification Method | Status |
-|---|---|---|---|---|
-| **AT-01** | Fresh setup and migrations | Database migrates without schema errors | `php artisan migrate:fresh` on MySQL | **PASSED** |
-| **AT-02** | Seed demo records | Seeders create realistic demo data without duplicate keys | `php artisan db:seed` | **PASSED** |
-| **AT-03** | Guest opens public price explorer | Public-safe data with robust statistical tags; no private leak | Feature Test `PublicAndReportTest` | **PASSED** |
-| **AT-04** | Guest opens private dashboard URL | Redirected to `/login`; protected data isolated | Feature Test `PublicAndReportTest` | **PASSED** |
-| **AT-05** | Farmer creates valid batch | Unique `KB-YYYYMMDD-XXXXXX` generated; farmer is initial custodian | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-06** | Farmer submits negative price/qty | Form validation rejects inputs with validation errors | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-07** | Current custodian records valid handoff | Atomic transaction commits custody, sequence, spread, audit | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-08** | Non-custodian attempts handoff | Rejected with `InvalidArgumentException`; chain unchanged | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-09** | Quantity exceeds available amount | Rejected atomically without partial mutation | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-10** | Same vendor is buyer and seller | Self-trade rejected | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-11** | Markup above threshold | Evaluated against active rules; anomaly flag generated | Feature & Unit Tests | **PASSED** |
-| **AT-12** | Missing next sale price | UI displays "Pending next sale price"; no invented margin | Blade template verified in Vendor Dashboard | **PASSED** |
-| **AT-13** | Insufficient verified price observations | Shows "Insufficient verified data" warning and sample count | Unit Test `CalculationServiceTest` | **PASSED** |
-| **AT-14** | Consumer submits valid report | Enters private moderation queue with tracking code | Feature Test `PublicAndReportTest` | **PASSED** |
-| **AT-15** | Unsafe/oversized evidence file | Disallowed mime types or >2MB files rejected | Feature Test `PublicAndReportTest` | **PASSED** |
-| **AT-16** | Authority reviews report/flag | Decision, notes, reviewer recorded; logged to audit table | Feature Test `AuthorityAndRbacTest` | **PASSED** |
-| **AT-17** | Public visits pending report evidence | Evidence and reporter details remain isolated | Feature Test `PublicAndReportTest` | **PASSED** |
-| **AT-18** | Transaction correction/void | Void reason required; previous custody restored | Feature Test `BatchAndHandoffTest` | **PASSED** |
-| **AT-19** | Charts & dashboard filters | Real SQL aggregates drive Chart.js and queue filters | Verified on Authority Dashboard | **PASSED** |
-| **AT-20** | Mobile/narrow viewport usability | Responsive Bootstrap 5 grid and accessible forms | Verified in Blade responsive layouts | **PASSED** |
-
----
-
-## 3. Dummy SMS Verification
-
-In accordance with explicit operator instructions, the SMS subsystem operates in **Dummy Mode**. Every custody handoff logs notification dispatches to `storage/logs/sms.log`:
-
-```
-[2026-10-12 07:43:41] DUMMY SMS to +8801712000002: KrishiByte: Batch KB-20261010-POT001 transferred to your custody. Qty: 2500 kg @ BDT 26.
-[2026-10-12 07:43:41] DUMMY SMS to +8801713000003: KrishiByte: Batch KB-20261010-POT001 transferred to your custody. Qty: 2500 kg @ BDT 32.
-[2026-10-12 07:43:41] DUMMY SMS to +8801714000004: KrishiByte: Batch KB-20261010-POT001 transferred to your custody. Qty: 2500 kg @ BDT 38.
-```
+A lot has one custodian: intermediate transfers move its full quantity. Partial retail sales work. Split/merge stock, losses, continuous GPS, real SMS delivery and public hosting were not implemented.

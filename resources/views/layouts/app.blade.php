@@ -437,6 +437,7 @@
         }
     </style>
     @stack('styles')
+<link rel="stylesheet" href="{{ asset('css/refined.css') }}">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark sticky-top" style="background-color: var(--kb-primary);">
@@ -457,7 +458,7 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('public.prices') ? 'active' : '' }}" href="{{ route('public.prices') }}">
-                            <i class="bi bi-graph-up me-1"></i> Price Explorer
+                            <i class="bi bi-graph-up me-1"></i> Prices
                         </a>
                     </li>
                     <li class="nav-item">
@@ -467,12 +468,12 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('public.report*') ? 'active' : '' }}" href="{{ route('public.report') }}">
-                            <i class="bi bi-exclamation-triangle me-1"></i> Report Gouging
+                            <i class="bi bi-exclamation-triangle me-1"></i> Report
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('public.faq') ? 'active' : '' }}" href="{{ route('public.faq') }}">
-                            <i class="bi bi-info-circle me-1"></i> FAQ & Methodology
+                            <i class="bi bi-info-circle me-1"></i> FAQ
                         </a>
                     </li>
                 </ul>
@@ -482,7 +483,7 @@
                         @if(auth()->user()->isFarmer())
                             <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs('farmer.*') ? 'active' : '' }}" href="{{ route('farmer.dashboard') }}">
-                                    <i class="bi bi-tractor me-1"></i> Farmer Portal
+                                    <i class="bi bi-tractor me-1"></i> Workspace
                                 </a>
                             </li>
                         @endif
@@ -490,7 +491,7 @@
                         @if(auth()->user()->isVendor())
                             <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs('vendor.*') ? 'active' : '' }}" href="{{ route('vendor.dashboard') }}">
-                                    <i class="bi bi-shop me-1"></i> Vendor Portal
+                                    <i class="bi bi-shop me-1"></i> Workspace
                                 </a>
                             </li>
                         @endif
@@ -498,7 +499,7 @@
                         @if(auth()->user()->isAuthority())
                             <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs('authority.*') ? 'active' : '' }}" href="{{ route('authority.dashboard') }}">
-                                    <i class="bi bi-shield-check me-1"></i> Monitor Desk
+                                    <i class="bi bi-shield-check me-1"></i> Review Desk
                                 </a>
                             </li>
                         @endif
@@ -506,15 +507,16 @@
                         @if(auth()->user()->isAdmin())
                             <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs('admin.*') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">
-                                    <i class="bi bi-gear me-1"></i> Admin Panel
+                                    <i class="bi bi-gear me-1"></i> Admin
                                 </a>
                             </li>
                         @endif
 
+                        <li class="nav-item"><a class="nav-link" href="{{ route('reports.mine') }}">My reports</a></li>
                         <li class="nav-item dropdown ms-lg-2">
                             <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-person-circle fs-5 me-1"></i>
-                                <span class="d-none d-lg-inline ms-1">{{ auth()->user()->name }}</span>
+                                <span class="d-none d-lg-inline ms-1">{{ auth()->user()->name }}</span> <x-verified-badge :user="auth()->user()" />
                                 <span class="badge bg-warning text-dark ms-2 badge-role">{{ auth()->user()->role }}</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userDropdown">
@@ -551,7 +553,8 @@
         </div>
     </nav>
 
-    <main class="main-content">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <main class="main-content" id="main-content">
         <div class="container">
             {{-- Alert Banners --}}
             @if(session('success'))
@@ -600,8 +603,8 @@
                         Transparent agricultural supply chain tracking and fair-margin intelligence for Bangladesh. Connecting growers, aggregators, arats, and retailers with auditable batch journeys.
                     </p>
                     <div class="d-flex flex-wrap gap-2 mb-2">
-                        <span class="badge bg-secondary border-0">Local Wampserver / MySQL MVP</span>
-                        <span class="badge bg-dark border border-secondary text-warning">SMS: Dummy Mode Active</span>
+                        <span class="badge bg-secondary border-0">Transparent provenance</span>
+                        <span class="badge bg-dark border border-secondary text-warning">Illustrative demo data</span>
                     </div>
                 </div>
                 <div class="col-md-3">

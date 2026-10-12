@@ -47,9 +47,9 @@ class CalculationServiceTest extends TestCase
 
         // 2 samples: low confidence / insufficient sample warning
         $res2 = CalculationService::calculateReferencePrice([30.00, 40.00]);
-        $this->assertEquals(35.00, $res2['indicative_price']);
+        $this->assertNull($res2['indicative_price']);
         $this->assertEquals(2, $res2['sample_count']);
-        $this->assertEquals('low', $res2['confidence']);
+        $this->assertEquals('none', $res2['confidence']);
     }
 
     public function test_reference_price_median_for_medium_samples(): void

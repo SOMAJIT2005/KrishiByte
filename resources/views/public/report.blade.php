@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Report Price Gouging — KrishiByte')
+@section('title', 'Report a Concern — KrishiByte')
 
 @section('content')
 <div class="row g-4 mb-4">
@@ -8,9 +8,9 @@
         <div class="d-flex align-items-center gap-3 flex-wrap">
             <div>
                 <h2 class="fw-bold mb-1" style="color: var(--kb-text);">
-                    <i class="bi bi-exclamation-triangle fs-4" style="color: var(--kb-warning);"></i> Submit a Price-Gouging Report
+                    <i class="bi bi-exclamation-triangle fs-4" style="color: var(--kb-warning);"></i> Submit a Supply Chain Report
                 </h2>
-                <p class="text-muted mb-0 small">Report excessive retail markups or unverified price spikes at kitchen markets across Bangladesh</p>
+                <p class="text-muted mb-0 small">For every role: report price, quantity, quality, and traceability concerns for private review.</p>
             </div>
         </div>
     </div>
@@ -29,6 +29,8 @@
             <div class="card-body p-4">
                 <form method="POST" action="{{ route('public.report.store') }}" enctype="multipart/form-data" id="reportForm">
                     @csrf
+                    <div class="row g-3 mb-4"><div class="col-md-6"><label class="form-label" for="category">Issue category</label><select id="category" name="category" class="form-select">@foreach(['price'=>'Price concern','quantity'=>'Quantity discrepancy','quality'=>'Quality concern','traceability'=>'Traceability issue'] as $key=>$label)<option value="{{ $key }}" @selected(old('category') === $key)>{{ $label }}</option>@endforeach</select></div><div class="col-md-6"><label class="form-label" for="batch_code">Batch code (optional)</label><input class="form-control" id="batch_code" name="batch_code" value="{{ old('batch_code') }}" placeholder="KB-YYYYMMDD-XXXXXX"></div></div>
+                    @auth<p class="small text-muted">Your submission will appear in <a href="{{ route('reports.mine') }}">My reports</a>. Evidence is available only to you and reviewers.</p>@endauth
 
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
@@ -70,10 +72,10 @@
                         </div>
 
                         <div class="col-md-4">
-                            <label for="reported_price" class="form-label">Observed Retail Price (BDT) <span class="text-danger">*</span></label>
+                            <label for="reported_price" class="form-label">Observed price (BDT per unit; required for price concerns)</label>
                             <div class="input-group">
                                 <span class="input-group-text" style="background: #f8fafc;">৳</span>
-                                <input type="number" step="0.5" name="reported_price" id="reported_price" class="form-control @error('reported_price') is-invalid @enderror" placeholder="e.g. 120.00" value="{{ old('reported_price') }}" required>
+                                <input type="number" step="0.01" min="0.01" max="10000" name="reported_price" id="reported_price" class="form-control @error('reported_price') is-invalid @enderror" placeholder="e.g. 120.00" value="{{ old('reported_price') }}">
                             </div>
                             @error('reported_price') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                         </div>
@@ -162,8 +164,8 @@
                     <div class="fw-semibold mb-2" style="color: var(--kb-text);">How Your Report Is Protected:</div>
                     <ul class="small mb-3" style="padding-left: 1.25rem;">
                         <li>Enters a <strong>private moderation queue</strong> — not visible to the public</li>
-                        <li>Market monitors review within 24-48 hours</li>
-                        <li>Only <strong>verified reports</strong> contribute to public price data</li>
+                        <li>The review team examines supporting evidence</li>
+                        <li>Only <strong>verified price reports</strong> contribute to public price data</li>
                         <li>Your identity stays confidential unless you give explicit consent</li>
                     </ul>
                     <div class="d-flex gap-2 flex-wrap mb-2">
@@ -183,8 +185,8 @@
             <div class="card-body p-4">
                 <ol class="small" style="padding-left: 1.25rem; color: var(--kb-text-muted);">
                     <li class="mb-2">You receive a <strong>unique tracking code</strong> (RPT-YYYYMMDD-XXXXXX)</li>
-                    <li class="mb-2">Market monitors review within <strong>24-48 hours</strong></li>
-                    <li class="mb-2"><strong>Verified reports</strong> convert to market observations</li>
+                    <li class="mb-2">The review team examines supporting evidence</li>
+                    <li class="mb-2"><strong>Verified price reports</strong> contribute to market observations</li>
                     <li>Track status anytime using your <strong>tracking code</strong></li>
                 </ol>
             </div>
@@ -203,9 +205,15 @@
 
 @push('scripts')
 <script>
-    document.getElementById('btnGetLocation').addEventListener('click', function () {
+    const categoryInput = document.getElementById('category');
+    const priceInput = document.getElementById('reported_price');
+    function updatePriceRequirement() { priceInput.required = categoryInput.value === 'price'; }
+    categoryInput.addEventListener('change', updatePriceRequirement);
+    updatePriceRequirement();
+
+    document.getElementById('btnGetLocation').addEventListener('click', function (event) {
         const statusSpan = document.getElementById('locationStatus');
-        const btn = event.target;
+        const btn = event.currentTarget;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Locating...';
 

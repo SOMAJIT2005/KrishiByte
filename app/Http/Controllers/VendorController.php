@@ -22,7 +22,7 @@ class VendorController extends Controller
         $user = Auth::user();
 
         // Batches currently in this vendor's custody
-        $batchesInCustody = Batch::with(['crop', 'originDistrict', 'transactions' => fn($q) => $q->where('is_voided', false)])
+        $batchesInCustody = Batch::with(['crop', 'originDistrict', 'transactions' => fn ($q) => $q->where('is_voided', false)])
             ->where('current_custodian_id', $user->id)
             ->where('status', 'active')
             ->get();
@@ -36,14 +36,22 @@ class VendorController extends Controller
             ->paginate(15);
 
         // Potential buyers based on role
-        $eligibleBuyers = match ($user->role) {
-            'collector' => User::whereIn('role', ['wholesale', 'retail'])->where('id', '!=', $user->id)->get(),
-            'wholesale' => User::whereIn('role', ['retail', 'wholesale'])->where('id', '!=', $user->id)->get(),
-            'retail' => User::where('role', 'consumer')->get(),
-            default => User::where('id', '!=', $user->id)->get(),
+        $roles = match ($user->role) {
+            'farmer' => ['collector'],
+            'collector', 'wholesale' => ['collector', 'wholesale', 'retail'],
+            'retail' => ['consumer'],
+            default => ['collector', 'wholesale', 'retail', 'consumer'],
         };
+        $eligibleBuyers = User::whereIn('role', $roles)->where('account_status', 'active')->where('id', '!=', $user->id)->orderBy('name')->get();
 
         $districts = District::orderBy('name')->get();
+
+        $collectionBatches = $user->isCollector()
+            ? Batch::with(['crop', 'farmer', 'originDistrict'])->where('current_stage', 'farm_gate')
+                ->where('status', 'active')->where('verification_status', '!=', 'rejected')
+                ->whereHas('currentCustodian', fn ($q) => $q->where('role', 'farmer')->where('account_status', 'active'))
+                ->latest()->paginate(10, ['*'], 'collection_page')
+            : collect();
 
         $stats = [
             'in_custody_count' => $batchesInCustody->count(),
@@ -52,17 +60,25 @@ class VendorController extends Controller
             'flagged_alerts' => Transaction::where('seller_id', $user->id)->where('validation_status', 'flagged')->count(),
         ];
 
-        return view('vendor.dashboard', compact('user', 'batchesInCustody', 'transactions', 'eligibleBuyers', 'districts', 'stats'));
+        return view('vendor.dashboard', compact('user', 'batchesInCustody', 'transactions', 'eligibleBuyers', 'districts', 'stats', 'collectionBatches'));
     }
 
-    public function storeHandoff(Request $request)
+    public function storeCollection(Request $request)
+    {
+        abort_unless(Auth::user()->isCollector(), 403);
+        $request->merge(['buyer_id' => Auth::id(), 'stage' => 'auto']);
+
+        return $this->storeHandoff($request, true);
+    }
+
+    public function storeHandoff(Request $request, bool $collection = false)
     {
         $validated = $request->validate([
             'batch_id' => ['required', 'exists:batches,id'],
             'buyer_id' => ['required', 'exists:users,id'],
-            'stage' => ['required', 'in:farmer_to_collector,collector_to_wholesale,wholesale_to_retail,retail_sale'],
-            'quantity' => ['required', 'numeric', 'min:0.1'],
-            'price_per_unit' => ['required', 'numeric', 'min:0.01'],
+            'stage' => ['required', 'in:auto,farmer_to_collector,collector_to_wholesale,wholesale_to_retail,retail_sale'],
+            'quantity' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
+            'price_per_unit' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:100000'],
             'district_id' => ['required', 'exists:districts,id'],
             'market_name' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:20,27'],
@@ -71,9 +87,15 @@ class VendorController extends Controller
         ]);
 
         try {
+            $sellerId = Auth::id();
+            if ($collection) {
+                $batch = Batch::with('currentCustodian')->findOrFail($validated['batch_id']);
+                abort_unless($batch->currentCustodian->isFarmer(), 422, 'This batch is no longer at the farm gate.');
+                $sellerId = $batch->current_custodian_id;
+            }
             $tx = $this->handoffService->recordHandoff([
                 'batch_id' => (int) $validated['batch_id'],
-                'seller_id' => Auth::id(),
+                'seller_id' => $sellerId,
                 'buyer_id' => (int) $validated['buyer_id'],
                 'stage' => $validated['stage'],
                 'quantity' => (float) $validated['quantity'],
@@ -87,14 +109,14 @@ class VendorController extends Controller
             ]);
 
             $flagNotice = ($tx->validation_status === 'flagged')
-                ? " Note: This transaction triggered an anomaly review flag due to markup rules."
-                : "";
+                ? ' Note: This transaction triggered an anomaly review flag due to markup rules.'
+                : '';
 
-            return redirect()->route('vendor.dashboard')
+            return redirect()->route(Auth::user()->isFarmer() ? 'farmer.handoff' : 'vendor.dashboard')
                 ->with('success', "Custody handoff completed successfully! Transaction #{$tx->id} recorded.{$flagNotice}");
         } catch (InvalidArgumentException $e) {
-            return redirect()->route('vendor.dashboard')
-                ->with('error', "Handoff rejected: " . $e->getMessage());
+            return redirect()->route(Auth::user()->isFarmer() ? 'farmer.handoff' : 'vendor.dashboard')
+                ->with('error', 'Handoff rejected: '.$e->getMessage());
         }
     }
 
@@ -106,17 +128,17 @@ class VendorController extends Controller
 
         try {
             $tx = Transaction::findOrFail($id);
-            if ($tx->recorded_by_user_id !== Auth::id() && !Auth::user()->isAdmin()) {
+            if ($tx->recorded_by_user_id !== Auth::id() && ! Auth::user()->isAdmin()) {
                 abort(403, 'You are not authorized to void this transaction.');
             }
 
             $this->handoffService->voidTransaction($id, Auth::id(), $validated['void_reason']);
 
-            return redirect()->route('vendor.dashboard')
+            return redirect()->route(Auth::user()->isFarmer() ? 'farmer.handoff' : 'vendor.dashboard')
                 ->with('success', "Transaction #{$id} has been voided and previous custody restored.");
         } catch (InvalidArgumentException $e) {
-            return redirect()->route('vendor.dashboard')
-                ->with('error', "Void failed: " . $e->getMessage());
+            return redirect()->route(Auth::user()->isFarmer() ? 'farmer.handoff' : 'vendor.dashboard')
+                ->with('error', 'Void failed: '.$e->getMessage());
         }
     }
 }

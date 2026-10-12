@@ -5,18 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\AnomalyFlag;
 use App\Models\Batch;
 use App\Models\Crop;
-use App\Models\District;
 use App\Models\PriceObservation;
 use App\Models\PriceReport;
 use App\Models\Transaction;
 use App\Services\AuditLoggerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class AuthorityController extends Controller
 {
     public function dashboard(Request $request)
     {
+        $request->validate(['crop_id' => ['nullable', 'exists:crops,id']]);
+        $crops = Crop::orderBy('name')->get();
+        $defaultCropId = Batch::whereHas('transactions', fn ($q) => $q->where('is_voided', false))->value('crop_id');
+        $selectedCrop = $crops->firstWhere('id', $request->input('crop_id')) ?? $crops->firstWhere('id', $defaultCropId) ?? $crops->first();
         $statusFilter = $request->input('flag_status');
         $reportFilter = $request->input('report_status');
 
@@ -24,13 +28,13 @@ class AuthorityController extends Controller
         if ($statusFilter) {
             $flagQuery->where('status', $statusFilter);
         }
-        $flags = $flagQuery->paginate(10, ['*'], 'flags_page');
+        $flags = $flagQuery->paginate(10, ['*'], 'flags_page')->withQueryString();
 
         $reportQuery = PriceReport::with(['crop', 'district', 'reviewer'])->latest();
         if ($reportFilter) {
             $reportQuery->where('status', $reportFilter);
         }
-        $reports = $reportQuery->paginate(10, ['*'], 'reports_page');
+        $reports = $reportQuery->paginate(10, ['*'], 'reports_page')->withQueryString();
 
         $stats = [
             'total_batches' => Batch::count(),
@@ -42,6 +46,8 @@ class AuthorityController extends Controller
 
         // Chart Data: Price spread averages across stages
         $stageAverages = Transaction::where('is_voided', false)
+            ->whereHas('batch', fn ($q) => $q->where('crop_id', $selectedCrop?->id))
+            ->where('unit', $selectedCrop?->unit)
             ->selectRaw('stage, AVG(price_per_unit) as avg_price, AVG(markup_percent) as avg_markup, count(*) as count')
             ->groupBy('stage')
             ->get();
@@ -57,6 +63,7 @@ class AuthorityController extends Controller
         }
 
         return view('authority.dashboard', compact(
+            'crops', 'selectedCrop',
             'flags',
             'reports',
             'stats',
@@ -106,37 +113,25 @@ class AuthorityController extends Controller
             'moderation_notes' => ['required', 'string', 'min:5', 'max:1000'],
         ]);
 
-        $beforeStatus = $report->status;
-
-        $report->update([
-            'status' => $validated['status'],
-            'moderation_notes' => $validated['moderation_notes'],
-            'reviewed_by_user_id' => Auth::id(),
-        ]);
-
-        // If verified, also create a verified price observation to feed the reference price system
-        if ($validated['status'] === 'verified' && $beforeStatus !== 'verified') {
-            PriceObservation::create([
-                'crop_id' => $report->crop_id,
-                'district_id' => $report->district_id,
-                'market_name' => $report->market_name,
-                'unit' => $report->unit,
-                'observed_retail_price' => $report->reported_price,
-                'observation_date' => $report->incident_date,
-                'source' => 'verified_citizen_report',
-                'verification_status' => 'verified',
-                'entered_by_user_id' => Auth::id(),
-                'notes' => "Derived from verified consumer report #{$report->tracking_code}. " . $report->moderation_notes,
-            ]);
-        }
-
-        AuditLoggerService::log(
-            action: 'REPORT_MODERATED',
-            targetType: 'PriceReport',
-            targetId: $report->id,
-            notes: "Report #{$report->tracking_code} moderated as {$validated['status']}. Notes: {$validated['moderation_notes']}",
-            userId: Auth::id()
-        );
+        DB::transaction(function () use ($id, $validated) {
+            $report = PriceReport::lockForUpdate()->findOrFail($id);
+            $report->update(['status' => $validated['status'], 'moderation_notes' => $validated['moderation_notes'], 'reviewed_by_user_id' => Auth::id()]);
+            if ($report->category === 'price') {
+                $observation = PriceObservation::where('price_report_id', $report->id)->first();
+                if ($report->status === 'verified') {
+                    PriceObservation::updateOrCreate(['price_report_id' => $report->id], [
+                        'crop_id' => $report->crop_id, 'district_id' => $report->district_id,
+                        'market_name' => $report->market_name, 'unit' => $report->unit,
+                        'observed_retail_price' => $report->reported_price, 'observation_date' => $report->incident_date,
+                        'source' => 'verified_citizen_report', 'verification_status' => 'verified',
+                        'entered_by_user_id' => Auth::id(), 'notes' => 'Reviewed report '.$report->tracking_code,
+                    ]);
+                } elseif ($observation) {
+                    $observation->update(['verification_status' => 'rejected']);
+                }
+            }
+            AuditLoggerService::log(action: 'REPORT_MODERATED', targetType: 'PriceReport', targetId: $report->id, notes: $validated['moderation_notes'], after: ['status' => $report->status], userId: Auth::id());
+        });
 
         return redirect()->route('authority.dashboard')
             ->with('success', "Price report {$report->tracking_code} updated to {$validated['status']}.");

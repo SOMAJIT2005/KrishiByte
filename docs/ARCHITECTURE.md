@@ -1,105 +1,37 @@
-# KrishiByte — System Architecture & Domain Specifications
+# Architecture and workflow — 12 October 2026
 
-KrishiByte is a farm-to-retail agricultural supply chain tracking and market intelligence system designed for Bangladesh. It models physical agricultural lots as traceable digital batches that move across a sequential 4-stage custody pipeline.
+## Application
 
----
+Laravel 12.69.3 / PHP 8.2 / MySQL. Blade pages share `resources/views/layouts/app.blade.php` and `public/css/refined.css`. Bootstrap, Chart.js and Leaflet remain the existing frontend libraries. Roles are farmer, collector, wholesale, retail, consumer, authority and admin; privileged registration is rejected.
 
-## 1. Core Architecture Diagram
+## Custody and stock
 
-```mermaid
-flowchart TD
-    subgraph Producers ["1. Rural Farm Gate"]
-        F["Farmer (Grower)"] -->|Harvest Batch| B["Batch Entity (KB-YYYYMMDD-XXXXXX)"]
-    end
+A `Batch` retains its original farmer, harvest details, quantity, unit and farmer price. It has one current custodian. `BatchHandoffService` locks the batch and records the transaction, inventory changes, audit record and anomaly flags in one database transaction.
 
-    subgraph Aggregation ["2. Primary Aggregation"]
-        B -->|Farmer-to-Collector Handoff| C["Faria / Local Collector"]
-    end
+Allowed transitions:
 
-    subgraph Distribution ["3. Wholesale Wholesale Arat"]
-        C -->|Inter-District Transport| W["Wholesale Aratdar"]
-    end
+- farmer → collector (farmer records the transfer, or the receiving collector records collection)
+- collector/wholesale → collector/wholesale/retail, including repeated intermediaries
+- retail → consumer
 
-    subgraph Retail ["4. Consumer Kitchen Market"]
-        W -->|Wholesale-to-Retail| R["Retail Shop Vendor"]
-        R -->|Final Sale| Citizen["Consumer / Citizen"]
-    end
+The service derives stage from participants instead of trusting form input. Seller must be current custodian; participants must be active. Quantity and price are positive and limited to two decimal places. Intermediate transfers must move all remaining stock because one lot has one custodian. Partial retail sales reduce stock while the retailer keeps custody; zero stock marks the lot sold out.
 
-    subgraph Surveillance ["Surveillance & Audit Engine"]
-        Rule["Configurable Markup Rules"] --> Engine["Anomaly Detection Engine"]
-        Engine -->|Exceeds Markup Threshold| Flag["Anomaly Flag (Needs Review)"]
-        Flag --> Auth["Authority Monitoring Desk"]
-        Report["Consumer Price Report"] -->|Pending Queue| Auth
-        Auth -->|Verified Survey Observation| Index["Indicative Reference Price Engine"]
-    end
-```
+Acquisition cost is the most recent non-void custody purchase. Retail sales use that cost rather than treating earlier sales as acquisition. Sequence numbers include voided records. Only the latest active transaction may be reversed by its recorder or an admin, with a reason. Reversal restores prior custody/stock and clears related flags without deleting history.
 
----
+## Verification and review
 
-## 2. Database Entities & ER Diagram
+Participant badges are admin decisions, with grant/revoke reasons and audit records. Only active, verified farmers, collectors, wholesalers and retailers display the badge. A badge identifies an account review; it does not certify crop quality. Batch verification remains separate. Rejected batches are excluded from public traceability and cannot be handed off; admins may verify them later.
 
-```mermaid
-erDiagram
-    USERS ||--o{ BATCHES : creates_or_holds
-    USERS ||--o{ TRANSACTIONS : sells_or_buys
-    USERS ||--o{ AUDIT_LOGS : performs
-    DISTRICTS ||--o{ BATCHES : originates
-    DISTRICTS ||--o{ TRANSACTIONS : transacted_in
-    CROPS ||--o{ BATCHES : categorizes
-    CROPS ||--o{ MARKUP_RULES : governs
-    CROPS ||--o{ PRICE_OBSERVATIONS : monitors
-    BATCHES ||--o{ TRANSACTIONS : records_journey
-    BATCHES ||--o{ ANOMALY_FLAGS : triggered_on
-    TRANSACTIONS ||--o{ ANOMALY_FLAGS : triggers
-    PRICE_REPORTS }o--|| CROPS : reports
-    PRICE_REPORTS }o--|| DISTRICTS : located_at
-```
+Markup rules select the most specific crop/stage match, then the newest rule. Excessive markup and excessive absolute spread create review flags. Flags prompt review; they do not automatically freeze trading or prove wrongdoing.
 
-### Table Definitions & Roles
+## Reporting and prices
 
-1. **`users`**: RBAC identities (`admin`, `authority`, `farmer`, `collector`, `wholesale`, `retail`, `consumer`), account status, phone, NID/trade license.
-2. **`districts`**: 13 major Bangladesh districts across all 8 divisions with GPS centroids.
-3. **`crops`**: Crops (Potato, Onion, Tomato, Green Chili, Brinjal, Cauliflower, Rice) with grade and unit of measure.
-4. **`batches`**: Digital batch with collision-safe code (`KB-YYYYMMDD-XXXXXX`), origin district, harvest date, initial farmer price, and `current_custodian_id`.
-5. **`transactions`**: Immutable handoff events storing seller, buyer, stage, quantity, price per unit, gross price spread, markup %, and sequence number.
-6. **`markup_rules`**: Configurable price spread guidelines per crop and stage.
-7. **`anomaly_flags`**: Administrative tripwires triggered when measured markup exceeds active rules.
-8. **`price_observations`**: Verified market surveys feeding indicative reference prices.
-9. **`price_reports`**: Consumer submissions with optional photo and GPS coordinates, isolated in a private moderation queue until reviewed.
-10. **`audit_logs`**: Chronological record of state transitions, actor ID, IP address, and payload diffs.
-11. **`notifications`**: In-app alerts for flagged lots and moderation updates.
+Reports support price, quantity, quality and traceability categories, optional batch context, and authenticated owner identity. Price is required only for price concerns. Private images have random names and trusted MIME-derived extensions. Only the report owner and authority/admin reviewers can fetch evidence. Public tracking shows a safe summary without narrative, contact details, images or moderator notes. Submission throttling and duplicate detection reduce repeat reports.
 
----
+Authority moderation locks the report. A verified price report updates one uniquely linked price observation. Rejecting or marking it duplicate withdraws that observation; re-verifying restores the same sample. Other report categories never create price samples.
 
-## 3. Mathematical Definitions & Price Calculations
+Reference prices compare crop, district, date and unit. Fewer than three verified samples produce no indicative reference; three/four use a median; five or more use a 20% trimmed mean. Authority charts filter crop and unit. Seed observations are illustrative.
 
-To eliminate ambiguity between markups and margins, KrishiByte enforces exact formulas:
+## Boundaries
 
-- **Previous Baseline Price ($B$):** The acquisition price per unit paid by the current seller in the preceding transaction (or initial farm-gate price for farmer transfers).
-- **Current Sale Price ($S$):** The transfer price negotiated with the buyer.
-- **Gross Price Spread:**
-  $$\text{Spread} = S - B$$
-- **Markup Percent on Cost (%):**
-  $$\text{Markup} = \left(\frac{S - B}{B}\right) \times 100 \quad (B > 0)$$
-- **Gross Margin Percent on Sale (%):**
-  $$\text{Margin} = \left(\frac{S - B}{S}\right) \times 100 \quad (S > 0)$$
-- **Pending Lots:** When a vendor holds custody of a lot and has not yet completed a sale to a downstream buyer, the system displays `"Pending next sale price"`. Speculative or invented profits are never displayed.
-
----
-
-## 4. Indicative Reference Price Methodology
-
-KrishiByte aggregates verified observations by crop, district, and date. To protect the public from artificial distortion or single-point manipulation:
-
-1. **$\ge 5$ verified samples:** Computes a **20% trimmed mean** (discards top and bottom 20% outliers). Tagged as `High Confidence`.
-2. **3 to 4 verified samples:** Computes the **median**. Tagged as `Medium Confidence`.
-3. **$< 3$ verified samples:** Displays an untrimmed indicative average with an alert: `Insufficient verified data (Sample count: X)`.
-
----
-
-## 5. Security & RBAC Enforcement
-
-- **Server-Side Authorization:** Middleware `RoleMiddleware` inspects authenticated user roles before allowing access to `/farmer/*`, `/vendor/*`, `/authority/*`, and `/admin/*`. Hiding UI buttons is never treated as authorization.
-- **Elevation Prevention:** Public registration routes permit selecting only `consumer`, `farmer`, `collector`, `wholesale`, or `retail`. Roles `authority` and `admin` are explicitly rejected.
-- **Safe Evidence Uploads:** Evidence attachments are validated for MIME type (`image/jpeg`, `image/png`, `image/webp`), size ($\le 2$ MB), and stored with random SHA hashes.
-- **Report Isolation:** Public users cannot view pending citizen reports or private reporter contact details. Only reviewed and verified reports are published.
+No split/merge lot inventory or loss ledger is implemented. GPS is optional user-supplied location, not continuous tracking. SMS is the existing mock/log adapter. External map tiles and frontend CDNs require connectivity. Timestamps remain stored in UTC and are displayed in Asia/Dhaka; historical values were not shifted.

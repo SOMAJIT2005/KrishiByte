@@ -3,6 +3,19 @@
 @section('title', 'Vendor Custody Workspace — KrishiByte')
 
 @section('content')
+@if($user->isCollector())
+<div class="card mb-4"><div class="card-header"><h2 class="h5 mb-1">Collect from a farmer</h2><p class="small text-muted mb-0">Record the agreed farm purchase. Farmer identity, original quantity, and every onward handoff stay attached to this lot.</p></div><div class="card-body">
+@forelse($collectionBatches as $lot)
+<form class="row g-2 align-items-end border-bottom pb-3 mb-3" method="POST" action="{{ route('vendor.collect') }}">@csrf
+<input type="hidden" name="batch_id" value="{{ $lot->id }}"><input type="hidden" name="quantity" value="{{ $lot->available_quantity }}"><input type="hidden" name="district_id" value="{{ $user->district_id ?: $lot->origin_district_id }}">
+<div class="col-lg-5"><strong>{{ $lot->batch_code }} · {{ $lot->crop->name }}</strong><div class="small text-muted">{{ $lot->farmer->name }} <x-verified-badge :user="$lot->farmer" /> · {{ $lot->originDistrict->name }} · {{ $lot->available_quantity }} {{ $lot->unit }}</div></div>
+<div class="col-md-4 col-lg-3"><label class="form-label small" for="collection-price-{{ $lot->id }}">Agreed price (BDT/{{ $lot->unit }})</label><input id="collection-price-{{ $lot->id }}" class="form-control" type="number" name="price_per_unit" min="0.01" step="0.01" value="{{ $lot->initial_farmer_price }}" required></div>
+<div class="col-md-4 col-lg-2"><label class="form-label small" for="collection-market-{{ $lot->id }}">Collection location</label><input id="collection-market-{{ $lot->id }}" name="market_name" class="form-control" value="{{ $lot->farm_location_name }}" maxlength="255"></div>
+<div class="col-md-4 col-lg-2"><button class="btn btn-primary w-100">Record collection</button></div></form>
+@empty<p class="text-muted mb-0">No harvest lots are available for collection.</p>@endforelse
+@if($collectionBatches->isNotEmpty()){{ $collectionBatches->links() }}@endif
+</div></div>
+@endif
 <div class="row g-3 mb-4 align-items-center">
     <div class="col-md-8">
         <div>
@@ -94,7 +107,7 @@
         </span>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table mb-0">
                 <thead>
                     <tr>
@@ -126,10 +139,10 @@
                                     <span class="small">{{ $batch->originDistrict->name }}</span>
                                 </div>
                             </td>
-                            <td><small class="text-muted">{{ number_format($batch->available_quantity, 0) }} {{ $batch->unit }}</small></td>
+                            <td><small class="text-muted">{{ number_format($batch->available_quantity, 2) }} {{ $batch->unit }}</small></td>
                             <td>
                                 <span class="fw-bold" style="color: var(--kb-text); font-family: monospace;">
-                                    ৳ {{ number_format($batch->latest_price, 2) }}
+                                    ৳ {{ number_format($batch->acquisition_price, 2) }}
                                 </span>
                                 <small class="text-muted d-block" style="font-size: 0.6875rem;">/ {{ $batch->unit }}</small>
                             </td>
@@ -139,19 +152,19 @@
                                 </span>
                             </td>
                             <td>
-                                @if($batch->cumulative_markup_percent !== null)
-                                    <span class="badge px-2 py-1 d-inline-flex align-items-center" style="font-size: 0.6875rem;" {{ $batch->cumulative_markup_percent > 30 ? 'style="background: var(--kb-warning); color: #1e293b;"' : 'style="background: var(--kb-bg); color: var(--kb-text); border: 1px solid var(--kb-border);"' }}>
-                                        <i class="bi bi-graph-up me-1"></i> +{{ number_format($batch->cumulative_markup_percent, 1) }}% total
+                                @if($batch->custody_markup_percent !== null)
+                                    <span class="badge px-2 py-1 d-inline-flex align-items-center" style="font-size: 0.6875rem;" {{ $batch->custody_markup_percent > 30 ? 'style="background: var(--kb-warning); color: #1e293b;"' : 'style="background: var(--kb-bg); color: var(--kb-text); border: 1px solid var(--kb-border);"' }}>
+                                        <i class="bi bi-graph-up me-1"></i> +{{ number_format($batch->custody_markup_percent, 1) }}% total
                                     </span>
                                 @else
                                     <span class="text-muted small">Farm-gate price</span>
                                 @endif
                                 <small class="text-muted d-block" style="font-size: 0.6875rem;">
-                                    Farm: ৳{{ number_format($batch->initial_farmer_price, 2) }} → Now: ৳{{ number_format($batch->latest_price, 2) }}
+                                    Farm: ৳{{ number_format($batch->initial_farmer_price, 2) }} → Now: ৳{{ number_format($batch->acquisition_price, 2) }}
                                 </small>
                             </td>
                             <td class="text-end">
-                                <button type="button" class="btn btn-sm btn-primary" style="border-radius: 0.375rem;" onclick="prepareHandoffModal({{ $batch->id }}, '{{ $batch->batch_code }}', {{ $batch->available_quantity }}, '{{ $batch->unit }}', {{ $batch->latest_price }})">
+                                <button type="button" class="btn btn-sm btn-primary" style="border-radius: 0.375rem;" data-id="{{ $batch->id }}" data-code="{{ $batch->batch_code }}" data-quantity="{{ $batch->available_quantity }}" data-unit="{{ $batch->unit }}" data-price="{{ $batch->acquisition_price }}" onclick="prepareHandoffModal(this.dataset.id, this.dataset.code, Number(this.dataset.quantity), this.dataset.unit, Number(this.dataset.price))">
                                     <i class="bi bi-arrow-right-circle me-1"></i> Record Handoff
                                 </button>
                             </td>
@@ -186,7 +199,7 @@
         </span>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable data table">
             <table class="table mb-0">
                 <thead>
                     <tr>
@@ -206,7 +219,7 @@
                 <tbody>
                     @forelse($transactions as $tx)
                         <tr class="{{ $tx->is_voided ? 'table-light text-muted' : '' }}">
-                            <td><small class="text-muted">{{ $tx->transaction_date->format('d M Y') }}</small></td>
+                            <td><small class="text-muted">{{ $tx->transaction_date->timezone('Asia/Dhaka')->format('d M Y') }}</small></td>
                             <td>
                                 <a href="{{ route('public.traceability.show', $tx->batch->batch_code) }}" class="font-monospace text-decoration-none" style="font-size: 0.8125rem; color: var(--kb-primary-light);">
                                     {{ $tx->batch->batch_code }}
@@ -235,7 +248,7 @@
                             <td>
                                 <code class="small" style="font-size: 0.6875rem;">{{ ucwords(str_replace('_', ' ', $tx->stage)) }}</code>
                             </td>
-                            <td><small class="text-muted">{{ number_format($tx->quantity, 0) }} {{ $tx->unit }}</small></td>
+                            <td><small class="text-muted">{{ number_format($tx->quantity, 2) }} {{ $tx->unit }}</small></td>
                             <td>
                                 <span class="fw-semibold" style="font-family: monospace; font-size: 0.875rem;">৳ {{ number_format($tx->price_per_unit, 2) }}</span>
                                 <small class="text-muted d-block" style="font-size: 0.6875rem;">/ {{ $tx->unit }}</small>
@@ -306,7 +319,7 @@
 <div class="modal fade" id="recordHandoffModal" tabindex="-1" aria-labelledby="recordHandoffModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form method="POST" action="{{ route('vendor.handoff.store') }}" id="handoffForm">
+            <form method="POST" action="{{ route(auth()->user()->isFarmer() ? 'farmer.handoff.store' : 'vendor.handoff.store') }}" id="handoffForm">
                 @csrf
                 <div class="modal-header" style="background: var(--kb-primary); color: #fff;">
                     <h5 class="modal-title fw-bold">
@@ -354,7 +367,7 @@
                             <select name="batch_id" id="modal_batch_id" class="form-select" required onchange="handleBatchSelectionChange(this)">
                                 <option value="">-- Choose Batch --</option>
                                 @foreach($batchesInCustody as $b)
-                                    <option value="{{ $b->id }}" data-qty="{{ $b->available_quantity }}" data-unit="{{ $b->unit }}" data-price="{{ $b->latest_price }}" data-farm-price="{{ $b->initial_farmer_price }}" data-markup="{{ $b->cumulative_markup_percent ?? 0 }}" data-handoffs="{{ $b->total_handoffs }}" data-route="{{ implode(' → ', $b->traversed_districts ?? []) }}">
+                                    <option value="{{ $b->id }}" data-qty="{{ $b->available_quantity }}" data-unit="{{ $b->unit }}" data-price="{{ $b->acquisition_price }}" data-farm-price="{{ $b->initial_farmer_price }}" data-markup="{{ $b->custody_markup_percent ?? 0 }}" data-handoffs="{{ $b->total_handoffs }}" data-route="{{ implode(' → ', $b->traversed_districts ?? []) }}">
                                         {{ $b->batch_code }} — {{ $b->crop->name }} (Avail: {{ $b->available_quantity }} {{ $b->unit }})
                                     </option>
                                 @endforeach
@@ -373,21 +386,7 @@
 
                         <div class="col-md-6">
                             <label for="stage" class="form-label">Handoff Stage <span class="text-danger">*</span></label>
-                            <select name="stage" id="stage" class="form-select" required>
-                                @if(auth()->user()->isCollector())
-                                    <option value="collector_to_wholesale" selected>Collector → Wholesale Arat</option>
-                                    <option value="wholesale_to_retail">Direct to Retail</option>
-                                @elseif(auth()->user()->isWholesale())
-                                    <option value="wholesale_to_retail" selected>Wholesale Arat → Retail Vendor</option>
-                                @elseif(auth()->user()->isRetail())
-                                    <option value="retail_sale" selected>Retail Shop → Citizen Sale</option>
-                                @else
-                                    <option value="farmer_to_collector">Farmer → Collector</option>
-                                    <option value="collector_to_wholesale">Collector → Wholesale</option>
-                                    <option value="wholesale_to_retail">Wholesale → Retail</option>
-                                    <option value="retail_sale">Retail Sale</option>
-                                @endif
-                            </select>
+                            <select name="stage" id="stage" class="form-select"><option value="auto">Automatic — determined by participant roles</option></select><small class="text-muted">Collectors and wholesalers can pass goods through multiple intermediaries. Whole lots retain their farmer provenance.</small>
                         </div>
 
                         <div class="col-md-6">
@@ -483,6 +482,7 @@
         const select = document.getElementById('modal_batch_id');
         select.value = batchId;
         currentBatchAcqPrice = acqPrice;
+        handleBatchSelectionChange(select);
         document.getElementById('modal_quantity').value = qty;
         document.getElementById('modal_quantity').max = qty;
         new bootstrap.Modal(document.getElementById('recordHandoffModal')).show();
@@ -516,13 +516,8 @@
         if (!isNaN(enteredPrice) && currentBatchAcqPrice > 0) {
             const spread = enteredPrice - currentBatchAcqPrice;
             const markup = ((spread / currentBatchAcqPrice) * 100).toFixed(1);
-            if (markup > 35) {
-                box.innerHTML = `<span style="color: var(--kb-danger);"><strong>Spread: ৳ ${spread.toFixed(2)}</strong> (+${markup}% — exceeds 35% guideline)</span>`;
-                box.style.borderColor = 'var(--kb-danger)';
-            } else {
-                box.innerHTML = `<span style="color: var(--kb-success);"><strong>Spread: ৳ ${spread.toFixed(2)}</strong> (+${markup}%)</span>`;
-                box.style.borderColor = 'var(--kb-success)';
-            }
+            box.textContent = `Spread: BDT ${spread.toFixed(2)} per unit (${markup}% markup). Saved transactions use configured review rules.`;
+            box.style.borderColor = 'var(--kb-border)';
         } else {
             box.innerHTML = '<span class="text-muted small">Enter price to preview</span>';
             box.style.borderColor = 'var(--kb-border)';

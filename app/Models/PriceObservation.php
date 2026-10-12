@@ -11,7 +11,7 @@ class PriceObservation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'crop_id',
+        'crop_id', 'price_report_id',
         'district_id',
         'market_name',
         'unit',

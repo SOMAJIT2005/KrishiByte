@@ -12,7 +12,7 @@ class PriceReport extends Model
     use HasFactory;
 
     protected $fillable = [
-        'tracking_code',
+        'tracking_code', 'reporter_user_id', 'category', 'batch_id',
         'reporter_name',
         'reporter_phone',
         'reporter_email',
@@ -43,7 +43,7 @@ class PriceReport extends Model
     public static function generateTrackingCode(): string
     {
         do {
-            $code = 'RPT-' . date('Ymd') . '-' . strtoupper(Str::random(6));
+            $code = 'RPT-'.date('Ymd').'-'.strtoupper(Str::random(6));
         } while (static::where('tracking_code', $code)->exists());
 
         return $code;

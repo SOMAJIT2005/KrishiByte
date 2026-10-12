@@ -49,7 +49,7 @@ class Batch extends Model
     public static function generateBatchCode(): string
     {
         do {
-            $code = 'KB-' . date('Ymd') . '-' . strtoupper(Str::random(6));
+            $code = 'KB-'.date('Ymd').'-'.strtoupper(Str::random(6));
         } while (static::where('batch_code', $code)->exists());
 
         return $code;
@@ -97,8 +97,21 @@ class Batch extends Model
 
     public function getLatestPriceAttribute(): float
     {
-        $lastTx = $this->transactions()->where('is_voided', false)->latest('sequence_no')->first();
+        $lastTx = $this->transactions()->where('is_voided', false)->reorder()->latest('sequence_no')->first();
+
         return $lastTx ? (float) $lastTx->price_per_unit : (float) $this->initial_farmer_price;
+    }
+
+    public function getAcquisitionPriceAttribute(): float
+    {
+        $tx = $this->transactions()->where('is_voided', false)->where('stage', '!=', 'retail_sale')->reorder()->latest('sequence_no')->first();
+
+        return $tx ? (float) $tx->price_per_unit : (float) $this->initial_farmer_price;
+    }
+
+    public function getCustodyMarkupPercentAttribute(): ?float
+    {
+        return CalculationService::calculateMarkupPercent((float) $this->initial_farmer_price, $this->acquisition_price);
     }
 
     /**
@@ -107,19 +120,21 @@ class Batch extends Model
      */
     public function getCumulativeMarkupPercentAttribute(): ?float
     {
-        $lastTx = $this->transactions()->where('is_voided', false)->latest('sequence_no')->first();
-        if (!$lastTx) {
+        $lastTx = $this->transactions()->where('is_voided', false)->reorder()->latest('sequence_no')->first();
+        if (! $lastTx) {
             return null;
         }
+
         return CalculationService::calculateMarkupPercent((float) $this->initial_farmer_price, (float) $lastTx->price_per_unit);
     }
 
     public function getCumulativeSpreadAttribute(): ?float
     {
-        $lastTx = $this->transactions()->where('is_voided', false)->latest('sequence_no')->first();
-        if (!$lastTx) {
+        $lastTx = $this->transactions()->where('is_voided', false)->reorder()->latest('sequence_no')->first();
+        if (! $lastTx) {
             return null;
         }
+
         return CalculationService::calculateSpread((float) $this->initial_farmer_price, (float) $lastTx->price_per_unit);
     }
 
@@ -142,6 +157,7 @@ class Batch extends Model
                 $districts[] = $tx->district->name;
             }
         }
+
         return array_values(array_unique($districts));
     }
 }

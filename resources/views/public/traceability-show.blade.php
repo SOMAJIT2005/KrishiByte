@@ -1,12 +1,13 @@
 @extends('layouts.app')
 
-@section('title', "Batch KrishiByte KrishiByte KrishiByte Traceability Results Results Results: {$batch->batch_code} — KrishiByte")
+@section('title', "Batch journey: {$batch->batch_code}")
 
 @section('content')
+<div class="alert alert-light border small">Batch review: <strong>{{ ucfirst($batch->verification_status) }}</strong>. {{ $batch->verification_status === 'verified' ? 'Provenance reviewed by an administrator.' : 'Participant-entered provenance awaiting administrator review.' }} Account badges are shown separately.</div>
 <div class="row g-3 mb-4">
     <div class="col-12">
         <nav aria-label="breadcrumb" class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('public.traceability') }}">KrishiByte KrishiByte KrishiByte Traceability Results Results Results</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('public.traceability') }}">Batch lookup</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ $batch->batch_code }}</li>
         </nav>
     </div>
@@ -16,7 +17,7 @@
                 <h2 class="fw-bold mb-0" style="color: var(--kb-text);">
                     <i class="bi bi-route me-2" style="color: var(--kb-primary-light);"></i> {{ $batch->batch_code }}
                 </h2>
-                <small class="text-muted">Registered by {{ $batch->farmer->name }} on {{ $batch->created_at->format('d M Y, h:i A') }}</small>
+                <small class="text-muted">Registered by {{ $batch->farmer->name }} <x-verified-badge :user="$batch->farmer" /> on {{ $batch->created_at->timezone('Asia/Dhaka')->format('d M Y, h:i A') }}</small>
             </div>
             <div class="d-flex gap-2 ms-auto">
                 <span class="badge bg-light text-dark border px-3 py-2 d-inline-flex align-items-center">
@@ -36,7 +37,7 @@
         <div class="d-flex justify-content-between flex-wrap gap-3">
             <div>
                 <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-3 py-2 d-inline-flex align-items-center mb-2">
-                    <i class="bi bi-patch-check me-1"></i> Verified Crop Batch
+                    <i class="bi bi-box me-1"></i> Traceable Crop Batch
                 </span>
             </div>
         </div>                <div class="row g-4">
@@ -120,12 +121,7 @@
                     </div>
                 @endif
 
-        @if($batch->notes)
-            <div class="mt-3 p-3 rounded bg-light border" style="border-color: var(--kb-border);">
-                <div class="small text-muted mb-1">Batch Notes</div>
-                <p class="small mb-0 text-secondary">{{ $batch->notes }}</p>
-            </div>
-        @endif
+
     </div>
 </div>
 
@@ -177,7 +173,7 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <div class="small text-muted d-block mb-1">Registered By</div>
-                        <div class="fw-semibold" style="color: var(--kb-text);">{{ $batch->farmer->name }}</div>
+                        <div class="fw-semibold" style="color: var(--kb-text);">{{ $batch->farmer->name }} <x-verified-badge :user="$batch->farmer" /></div>
                         <span class="badge bg-light text-dark border badge-role ms-1">Farmer</span>
                     </div>
                     <div class="col-md-4">
@@ -219,17 +215,17 @@
                                 </span>
                             @endif
                         </div>
-                        <span class="text-muted small">{{ $tx->transaction_date->format('d M Y, h:i A') }}</span>
+                        <span class="text-muted small">{{ $tx->transaction_date->timezone('Asia/Dhaka')->format('d M Y, h:i A') }}</span>
                     </div>
 
                     <div class="row g-3">
                         <div class="col-md-3">
                             <div class="small text-muted d-block mb-1">Custody Transfer</div>
                             <div class="small">
-                                <strong>{{ $tx->seller->name }}</strong>
+                                <strong>{{ $tx->seller->name }} <x-verified-badge :user="$tx->seller" /></strong>
                                 <span class="badge-role bg-light text-dark border ms-1">{{ $tx->seller->role }}</span>
                                 <span class="text-muted mx-1" style="font-size: 0.875rem;">→</span>
-                                <strong>{{ $tx->buyer->name }}</strong>
+                                <strong>{{ $tx->buyer->name }} <x-verified-badge :user="$tx->buyer" /></strong>
                                 <span class="badge-role bg-light text-dark border ms-1">{{ $tx->buyer->role }}</span>
                             </div>
                         </div>
@@ -266,12 +262,7 @@
                         </div>
                     </div>
 
-                    @if($tx->note)
-                        <div class="mt-3 p-2 rounded bg-light border" style="border-color: var(--kb-border);">
-                            <div class="small text-muted mb-1">Notes</div>
-                            <p class="small mb-0 text-secondary">{{ $tx->note }}</p>
-                        </div>
-                    @endif
+
                 </div>
             </div>
         </div>
@@ -296,6 +287,7 @@
         const defaultCenter = [23.8103, 90.4125];
         const defaultZoom = 7;
 
+        if (typeof L === 'undefined') { document.getElementById('traceabilityMap').textContent = 'Map unavailable. Follow the recorded journey below.'; return; }
         const map = L.map('traceabilityMap').setView(defaultCenter, defaultZoom);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -310,13 +302,10 @@
                 latlngs.push(latlng);
 
                 const marker = L.marker(latlng).addTo(map);
-                marker.bindPopup(`
-                    <div style="font-size: 13px; min-width: 160px;">
-                        <strong>${pt.name}</strong><hr class="my-1" style="border-top: 1px solid #ddd;">
-                        <div style="color: #666;">Stage: ${pt.stage}</div>
-                        <div>Price: <strong>৳ ${pt.price}</strong></div>
-                    </div>
-                `);
+                const unit = @json($batch->unit);
+                const popup = document.createElement('div');
+                popup.textContent = `${pt.name} · ${pt.stage} · BDT ${pt.price} per ${unit}`;
+                marker.bindPopup(popup);
 
                 if (idx === 0) {
                     marker.openPopup();
