@@ -6,7 +6,7 @@ if (PHP_SAPI !== 'cli' || getenv('DB_DATABASE') !== 'krishibyte_test') {
 }
 require __DIR__.'/../vendor/autoload.php';
 $app = require __DIR__.'/../bootstrap/app.php';
-$app->make(Kernel::class)->bootstrap();
+$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 use App\Models\Batch;
 use App\Models\Crop;
 use App\Models\District;
@@ -41,7 +41,7 @@ $people = [];
 $lots = [];
 try {
     foreach (['farmer', 'collector', 'retail'] as $role) {
-        $people[$role] = User::create(['name' => 'Concurrency QA '.$role, 'email' => $role.'.'.$marker.'@example.test', 'password' => Str::random(32), 'role' => $role, 'account_status' => 'active']);
+        $people[$role] = User::create(['name' => 'Concurrency QA '.$role, 'email' => $role.'.'.$marker.'@example.test', 'password' => Str::random(32), 'role' => $role, 'trading_approved' => true, 'account_status' => 'active']);
     }
     foreach (['farmer', 'retail'] as $role) {
         $lots[$role] = Batch::create(['batch_code' => 'QA-CONC-'.$role.'-'.substr($marker, 0, 12), 'crop_id' => Crop::first()->id, 'farmer_id' => $people['farmer']->id, 'origin_district_id' => District::first()->id, 'harvest_date' => now(), 'initial_quantity' => 100, 'available_quantity' => 100, 'unit' => 'kg', 'initial_farmer_price' => 20, 'current_custodian_id' => $people[$role]->id, 'current_stage' => $role === 'farmer' ? 'farm_gate' : 'retail_custody', 'status' => 'active']);

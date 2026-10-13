@@ -43,3 +43,11 @@ Enrollment applications need public-profile consent and admin review before a pr
 ## Boundaries
 
 No split/merge lot inventory or loss ledger is implemented. GPS is optional user-supplied location, not continuous tracking. SMS is the existing mock/log adapter. External map tiles and frontend CDNs require connectivity. Timestamps remain stored in UTC and are displayed in Asia/Dhaka; historical values were not shifted.
+
+## 2026-10-13 — district marketplaces and lifecycle safeguards
+
+`marketplaces` belongs to a district; a retailer's registered marketplace determines destination lookup. `retail_prices` is append-only through the application: quoted price/unit/time and retailer/batch/market with a unique actor/request key. Quotes do not move goods, deduct stock, create customer transactions or assert payment. Public timelines retain custody receipts through the retailer and exclude historical customer sale entries; latest acquisition price is labelled separately from shop asking price.
+
+`correction_requests` reserves a lot for latest-transfer, counterparty-approved reversal while keeping original voided history. `review_assignments` scopes private reviewer cases and aggregates, with participant conflict checks. `farmer_access_requests` stores supervised verification notes and hashed expiring single-use codes; a bounded farmer session can read own agreements, request correction and withdraw publication. New traders require explicit capability approval, separate from badges. Consent records, per-unit profile totals, status versions and evidence budgets address the supplied bug review; full matrix and recovery approach: [review remediation](REVIEW_REMEDIATION_2026-10-13.md).
+
+Authority graphs compare independent custody-stage groups over recorded dates for the selected crop/unit and assigned districts. They exclude voided transactions, historical customer sales and units pending review. Horizontal Price/Markup views use separate scales; exact arithmetic averages, ranges and record counts are available below. Null acquisition-based markup stays missing. These comparisons do not represent a single batch trajectory or a reviewed survey market reference; demo/legacy coverage is labelled.

@@ -4,6 +4,7 @@ use App\Models\Batch;
 use App\Models\PriceObservation;
 use App\Models\PriceReport;
 use Database\Seeders\DemoPriceHistorySeeder;
+use Database\Seeders\MarketplaceShowcaseSeeder;
 use Database\Seeders\ShowcaseScenarioSeeder;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -20,7 +21,7 @@ Artisan::command('showcase:populate', function () {
         return 1;
     }
     $this->info('Adding illustrative scenarios and 14 days of prices; preserving existing records and completed actions.');
-    foreach ([ShowcaseScenarioSeeder::class, DemoPriceHistorySeeder::class] as $seeder) {
+    foreach ([ShowcaseScenarioSeeder::class, DemoPriceHistorySeeder::class, MarketplaceShowcaseSeeder::class] as $seeder) {
         if ($this->call('db:seed', ['--class' => $seeder, '--force' => true]) !== 0) {
             return 1;
         }

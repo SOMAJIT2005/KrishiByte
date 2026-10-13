@@ -21,7 +21,7 @@ class FarmerProfileAndAgreementTest extends TestCase
 
     private function person(string $role): User
     {
-        return User::factory()->create(['role' => $role, 'account_status' => 'active', 'farmer_profile_public' => $role === 'farmer', 'district_id' => District::first()->id]);
+        return User::factory()->create(['role' => $role, 'trading_approved' => true, 'account_status' => 'active', 'farmer_profile_public' => $role === 'farmer', 'district_id' => District::first()->id]);
     }
 
     public function test_enrollment_requires_consent_and_admin_review_generates_private_contact_public_profile(): void

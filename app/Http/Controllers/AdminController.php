@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\Crop;
+use App\Models\District;
+use App\Models\Marketplace;
 use App\Models\MarkupRule;
 use App\Models\User;
 use App\Services\AuditLoggerService;
+use App\Services\ReviewAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,8 +22,10 @@ class AdminController extends Controller
         $users = User::with('district')->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->string('search').'%'))->orderBy('name')->paginate(15)->withQueryString();
         $rules = MarkupRule::with('crop')->get();
         $crops = Crop::orderBy('name')->get();
+        $reviewers = User::whereIn('role', ['admin', 'authority'])->where('account_status', 'active')->orderBy('name')->get();
+        $districts = District::orderBy('name')->get();
 
-        return view('admin.dashboard', compact('users', 'rules', 'crops'));
+        return view('admin.dashboard', compact('users', 'rules', 'crops', 'reviewers', 'districts'));
     }
 
     public function verifyUser(Request $request, int $id)
@@ -42,17 +47,60 @@ class AdminController extends Controller
 
     public function toggleUserStatus(Request $request, int $id)
     {
-        $validated = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:500']]);
+        $validated = $request->validate(['status' => ['required', 'in:active,suspended'], 'version' => ['required', 'integer', 'min:0'], 'reason' => ['required', 'string', 'min:5', 'max:500']]);
         abort_if($id === Auth::id(), 422, 'You cannot suspend your own admin account.');
         DB::transaction(function () use ($id, $validated) {
+            // One lock order for all staff changes preserves an active administrator.
+            User::where('role', 'admin')->orderBy('id')->lockForUpdate()->get();
+            abort_unless(User::findOrFail(Auth::id())->account_status === 'active', 403, 'Administrator account is no longer active.');
             $user = User::lockForUpdate()->findOrFail($id);
             $before = $user->account_status;
-            $status = $before === 'active' ? 'suspended' : 'active';
-            $user->update(['account_status' => $status]);
-            AuditLoggerService::log(action: 'USER_STATUS_TOGGLED', targetType: 'User', targetId: $id, notes: $validated['reason'], before: ['account_status' => $before], after: ['account_status' => $status], userId: Auth::id());
+            $status = $validated['status'];
+            if ($before === $status) {
+                return;
+            }
+            abort_unless($user->status_version === (int) $validated['version'], 409, 'Account changed; refresh before deciding.');
+            abort_if($user->role === 'admin' && $status === 'suspended' && User::where('role', 'admin')->where('account_status', 'active')->count() <= 1, 422, 'Keep an active administrator.');
+            $user->update(['account_status' => $status, 'status_version' => $user->status_version + 1]);
+            AuditLoggerService::log(action: 'USER_STATUS_SET', targetType: 'User', targetId: $id, notes: $validated['reason'], before: ['account_status' => $before], after: ['account_status' => $status, 'version' => $user->status_version], userId: Auth::id());
         });
 
         return back()->with('success', 'Account status updated.');
+    }
+
+    public function tradingApproval(Request $request, int $id)
+    {
+        $data = $request->validate(['approved' => ['required', 'boolean'], 'reason' => ['required', 'string', 'min:5', 'max:500']]);
+        DB::transaction(function () use ($data, $id) {
+            $user = User::lockForUpdate()->findOrFail($id);
+            abort_unless($user->isVendor(), 422);
+            abort_if($data['approved'] && ! $user->district_id, 422, 'A registered district is required before approving this trader.');
+            abort_if($data['approved'] && ($user->account_status !== 'active' || (in_array($user->role, ['collector', 'retail'], true) && ! $user->nid_or_trade_license)), 422, 'An active account and registered trade license are required.');
+            abort_if($data['approved'] && $user->isRetail() && ! Marketplace::whereKey($user->marketplace_id)->where('district_id', $user->district_id)->where('is_active', true)->exists(), 422, 'Register the shop in an active marketplace in its district first.');
+            $before = $user->trading_approved;
+            $user->update(['trading_approved' => $data['approved']]);
+            AuditLoggerService::log(action: 'TRADING_APPROVAL_SET', targetType: 'User', targetId: $id, notes: $data['reason'], before: ['approved' => $before], after: ['approved' => $user->trading_approved]);
+        });
+
+        return back()->with('success', 'Trading capability updated separately from identity badges.');
+    }
+
+    public function assignReviewer(Request $request)
+    {
+        $data = $request->validate(['user_id' => ['required', 'integer', 'exists:users,id'], 'district_id' => ['required', 'integer', 'exists:districts,id'], 'assigned' => ['required', 'boolean'], 'reason' => ['required', 'string', 'min:5', 'max:500']]);
+        DB::transaction(function () use ($data) {
+            $user = User::lockForUpdate()->findOrFail($data['user_id']);
+            abort_unless(in_array($user->role, ['admin', 'authority'], true), 422);
+            $query = DB::table('review_assignments')->where('user_id', $user->id)->where('district_id', $data['district_id']);
+            if ($data['assigned']) {
+                DB::table('review_assignments')->updateOrInsert(['user_id' => $user->id, 'district_id' => $data['district_id']], ['assigned_by' => auth()->id(), 'reason' => $data['reason'], 'created_at' => now(), 'updated_at' => now()]);
+            } else {
+                $query->delete();
+            }
+            AuditLoggerService::log(action: 'REVIEW_ASSIGNMENT_SET', targetType: 'User', targetId: $user->id, notes: $data['reason'], after: ['district_id' => $data['district_id'], 'assigned' => $data['assigned']]);
+        });
+
+        return back()->with('success', 'Reviewer district scope updated.');
     }
 
     public function storeRule(Request $request)
@@ -122,6 +170,7 @@ class AdminController extends Controller
     public function batchVerificationIndex()
     {
         $batches = Batch::with(['crop', 'farmer', 'originDistrict', 'currentCustodian', 'verifiedByAdmin'])
+            ->whereIn('origin_district_id', ReviewAccess::districts())
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
@@ -131,6 +180,7 @@ class AdminController extends Controller
     public function verifyBatch(Request $request, int $batchId)
     {
         $batch = Batch::findOrFail($batchId);
+        ReviewAccess::authorize($batch->origin_district_id, $batch->id);
 
         if ($batch->verification_status === 'verified') {
             return redirect()->back()->with('error', 'This batch is already verified.');
@@ -167,6 +217,7 @@ class AdminController extends Controller
     public function rejectBatch(Request $request, int $batchId)
     {
         $batch = Batch::findOrFail($batchId);
+        ReviewAccess::authorize($batch->origin_district_id, $batch->id);
 
         if ($batch->verification_status === 'rejected') {
             return redirect()->back()->with('error', 'This batch is already rejected.');
@@ -213,6 +264,8 @@ class AdminController extends Controller
             'transactions.district',
             'anomalyFlags.rule',
         ])->findOrFail($batchId);
+
+        ReviewAccess::authorize($batch->origin_district_id, $batch->id);
 
         return view('admin.batch-detail', compact('batch'));
     }

@@ -6,6 +6,21 @@
 
 ## Latest update — 13 October 2026
 
+### Follow-up: required trade licenses for collectors and retail shops
+
+- Updated the shared registration form: selecting Collector or Retail Vendor changes the identity label to “Trade License Number (Required)” and enables native required-field validation. Switching to another role removes that requirement. Added a 100-character limit, explanatory text, and inline validation errors; validation-error redisplay retains the selected role and requirement.
+- Added backend `required_if:role,collector,retail` validation with a clear error message. Missing and whitespace-only license numbers are rejected even if browser checks are bypassed. Values continue to use existing encrypted storage; supplying a number does not automatically grant a verified badge or independently verify the license.
+- Existing accounts were not changed, and consumer, farmer, and wholesale registration requirements were preserved. This request concerns a license number, not a document-upload requirement.
+- Read `KrishiByte_Latest_Bug_Review_and_Role_Restrictions_2026-10-13.md` as review context. Its proposed broader fixes and role restrictions were not treated as authorization to implement unrelated changes in this follow-up.
+- Added three registration tests for missing/blank collector and retail licenses, successful encrypted/unverified registration, and unaffected other roles. Focused analytics/registration checks passed: six tests, seventy-four assertions. Complete suite passed: **64 tests, 455 assertions** on `krishibyte_test`.
+- Live browser checks verified required/missing validity for both collector and retail, and optional identity for consumers. Blade compilation, PHP formatting, and whitespace checks passed. Screenshot: `docs/screenshots/retail-trade-license-required.png`.
+- Restarted the stopped local development server using `tools/Start-Showcase.ps1 -NoBrowser` to complete browser verification. No test accounts were added to the application database during these checks.
+
+### Follow-up: make demo analytics visible through normal website navigation
+
+- Local `/analytics` now selects the clearly labelled demo source when no source is specified, so the website's Analytics navigation and homepage link display seeded charts immediately. Explicit survey/report selections remain respected. Production retains the survey default.
+- Tested local defaults, explicit survey selection, and production defaults. Verified the actual website Analytics navigation displays demo data, populated reference cards, two rising products and four falling products.
+
 ### Follow-up: populate the analytics page shown in the screenshot
 
 - Refreshed the idempotent demo price-history seeder: 1,470 illustrative samples for seven crops, three districts, and fourteen days. Existing non-demo records remain unchanged.
@@ -492,3 +507,74 @@ Screenshots saved:
 - Restart the local website, when needed, with `php -S 127.0.0.1:8000 -t public` while WAMP MySQL is running.
 
 Updated supporting documents: `README.md`, `docs/ARCHITECTURE.md`, `docs/ENVIRONMENT.md`, and `docs/TESTING.md`.
+
+## 2026-10-13 — remaining bug review and district marketplaces
+
+User authorization: finish remaining work from the latest bug review; then change retail workflow to selling-price tracking, add destination district/market lookup and admin marketplaces, require retail district/market registration, and populate markets with shops and traces. The supplied document was review context; actual code, MySQL and live pages determined the changes.
+
+### Changes and upgrades
+
+- B01: four vendor templates exist in the actual project and render; missing files in the supplied text export were an export omission.
+- B02/B03/B08: widened transaction/flag percentage fields to DECIMAL(16,2), checked computed bounds before SQL, synchronized current transaction review with all open flags, kept historical signals, and blocked ordinary reopening of cleared/voided flags.
+- B04/B05: accepted custody corrections require a latest-transfer participant request and affected counterparty acceptance; pending transfers/corrections reserve stock. Original transaction/history remains retained as voided. Added farmer/collector/wholesale/retail HTTP correction inbox/forms. No administrator impersonation or unilateral custody restore.
+- B06/B07: real farmers stay private without enrollment consent; explicit backfill repair and seed behavior preserve withdrawals. Added consent time/method/operator, duplicate approval linking and candidate selection. Assisted private access requires administrator independent identity/contact verification, single-use hashed 24h code and bounded 1h own-farmer session. Private agreements, supervised correction requests and publication withdrawal are available without email login.
+- B09: desired account status/version replaces retry-unsafe toggling. Ordered admin locks, active-actor recheck, self-suspension/last-admin guards and audit records preserve recovery. Stale changes return 409.
+- B10/B11: crop totals group by unit; agreement unit mismatches are rejected. Public quantities retain two decimals and negative signs display correctly.
+- B12: 100 farmer agreements per collector per rolling day; serialized 512MiB private evidence ceiling with 80%/limit warnings; image/daily quotas and orphan cleanup. Added regression tests for budget rejection, lock release and daily quota cleanup.
+- New traders require explicit administrator capability approval, independently of verification badges; existing active traders retain rollout capability. Reviewer assignment scopes cases, private evidence and aggregates, with self/participant conflict rejection. Admin batch details/review require assignment. Admin can assign/revoke districts using named selectors; sensitive actions require recent password.
+- Retail workflow now accepts incoming goods and records shop selling-price/unit history. No customer selection/handoff, payment assertion or stock deduction. Legacy dashboard redirects to `/retail/prices`; HTTP customer handoffs are denied. Public custody timelines exclude historical customer sales; asking prices display separately from custody/acquisition prices. Historical records remain retained; the customer-sale service is limited to CLI fixtures/import compatibility.
+- New district-owned marketplaces, admin creation/audit/recent-password form, district+market+shop+license retail registration with server-side matching/active checks. Retail approval also validates market registration.
+- Public `/traceability`: select destination district, then market; corresponding approved shops and stocked batches appear with crop, independent origin district, recorded stock quantity, latest shop quote and journey link. Public batch page shows retailer/market/asking price and map through the retailer. Price references in Analytics remain separately reviewed survey/report/demo datasets.
+- Populated **13 configured districts, 39 illustrative marketplaces, 78 new demo shops, 156 cross-district lots, 468 custody records and 312 initial shop quotes**; all 39 markets have two shops/four lots. Also assigned existing Rafiq demo shop to Dhaka's demo Central Market and quoted its stock. Synthetic farm imports are labelled legacy/unconfirmed; fixtures do not establish real contracts/payment. Rerun preserved actions and counts. `showcase:populate` and existing Populate-Showcase.cmd now include markets; showcase page/guide explain the new workflow.
+
+### Tests and live website results
+
+- `php artisan test --compact`: **81 tests / 585 assertions PASS** on disposable MySQL `krishibyte_test`. Relevant new files: ReviewRemediationTest, ReviewSafeguardsTest, MarketplaceWorkflowTest and TradeLicenseRegistrationTest. Original tests retained and updated only where the revised product behavior changed expected retail display/navigation.
+- Real overlapping MySQL CLI check: duplicate acceptance creates one transaction; historical competing retail deductions do not oversell; duplicate historical sale deducts once. Staff concurrency is guarded but not independently raced in this round.
+- Live browser at `http://127.0.0.1:8000`: Dhaka → Wholesale Market showed two shops/four lots from multiple origin districts; journey showed map, custody receipts through retail and separate quote. Retail registration dynamically required district/market/shop/license and limited options to the selected district. Retail demo shortcut opened selling-price page; posted **BDT76/kg** for **KB-DEMO-RETAIL**, saw quote history/public trace update, confirmed **450kg unchanged**. Admin marketplace form/list rendered. HTTP tests cover actual creation and permission denials.
+- Saved proof: `docs/screenshots/market-traceability.png`, `retail-market-registration.png`, `retail-selling-price.png`, `admin-marketplaces.png`. Live QA leaves one explicitly synthetic BDT76/kg quote; no real customer transaction was submitted.
+- PHP formatting, Blade compilation and diff whitespace checks passed. No new application dependency.
+- Pre-change backup `_20261013_02`: isolated exact restore of **23 tables**. Post-change `_20261013_03`: isolated exact restore of **28 tables**. Matching private environment/key/evidence kept outside repository. Applied additive migrations 020000/030000/040000/050000 to application/test DB; no working DB reset or key rotation. Destructive down migrations intentionally refuse history loss; coordinated restoration requires matching source/data/environment/evidence.
+
+Supporting documents updated: README, ARCHITECTURE, TESTING, SECURITY_REVIEW and SHOWCASE. Full B01-B12/capability/recovery mapping: `docs/REVIEW_REMEDIATION_2026-10-13.md`.
+
+Remaining boundaries: 13 seeded districts are a demonstration dataset, not all 64 districts or a registry of real marketplaces. Operator verification is required for assisted access; real SMS/contact ownership proof and maintained staff MFA/recovery are deployment work. HTTPS/proxy/cookies, least-privilege DB, stronger CSP, offsite monitored backups and evidence retention still need production configuration. Split/merge lots, losses, receivables and saved analytics comparisons remain optional future scope. Checks are representative local verification, not exhaustive security/load/every-browser certification.
+
+Final visual refinement: market goods use responsive cards so shop asking prices, origin, stock and journey links stay visible without scrolling a wide table. Rechecked the live Barishal Neighbourhood Market (four lots, two shops, multiple origins). Focused MarketplaceWorkflowTest remained green after this view change. Changed PHP lint returned zero failures. All 39 market groups independently checked: exactly two shops, four lots and at least two distinct origins each. Matching source was copied into the post-change backup's `source` folder.
+
+## 2026-10-13 — authority review desk pagination UI fix
+
+- Root cause: Laravel's default Tailwind pagination was rendered in a Bootstrap 5 project, leaving utility classes/SVG arrows unstyled. This produced oversized arrows and excessive blank space below reports.
+- Changed `AppServiceProvider::boot()` to use Laravel's built-in Bootstrap 5 pagination consistently across the project. Existing pagination colors/spacing now apply; no CSS workaround or new dependency.
+- Verification: PHP syntax lint passed; compiled Blade cache cleared; existing all-role workspace/batch-page test passed (1 test / 15 assertions). Live authority dashboard showed compact pagination (43.2px high, no pagination SVGs), 1–10 of 16 reports, and Next correctly loaded 11–16 while preserving `crop_id=5` and the separate `reports_page` parameter.
+- Saved live proof: `docs/screenshots/authority-pagination-fixed.png`. No database or role-permission change.
+
+## 2026-10-13 — authority graph representation fix
+
+- Replaced the dual-axis bar/smoothed-line graph with horizontal stage-comparison bars and separate Price / Markup controls. Labels stay horizontal; each metric has its own correctly labelled scale and the selected crop's actual unit. Metric changes render immediately without misleading transition frames; negative markup bars are blue.
+- Corrected the meaning/title: independent stage averages across multiple batches are not presented as a single batch's price progression. The page states its assigned-district, all-recorded-date, demo/legacy coverage. Historical customer sales are excluded to match the revised retail workflow; retail asking prices remain separate from custody prices.
+- Stage groups have an explicit role order. Data uses the selected crop/unit and reviewer assignments, excludes voided transfers and units pending review, and retains missing markup as null instead of zero. Added exact averages, min/max prices, sample counts and comparable markup counts in an accessible expandable table. No comparable records/markup produces a clear empty state.
+- Added AuthorityChartTest for ordered/grouped averages, unit/district isolation, price ranges/counts, corrected/customer-sale exclusion, missing markup and empty assignment behavior. Focused authority/workflow/review checks: **25 tests / 171 assertions PASS** on `krishibyte_test`. PHP lint, Pint, Blade compilation and diff checks passed.
+- Live browser: price and markup buttons switched correctly, readable stage bars rendered, exact-value table matched the current 78-transfer Potato dataset, and chart console error log was empty. Screenshot: `docs/screenshots/authority-stage-chart-fixed.png`. No working database data/schema changes.
+
+## 2026-10-13 — desktop showcase shortcut
+
+Created `C:\Users\nisla\Desktop\KrishiByte Showcase.lnk`, pointing to `D:\KrishiByte\Showcase-KrishiByte.cmd` with the project working directory. Double-click it after starting Wampserver MySQL to reuse/start the hidden local PHP server and open `/demo-showcase` in the default browser. The showcase includes role shortcuts, workflow instructions, markets and analytics links. Verified the saved shortcut target and ran `tools/Start-Showcase.ps1 -NoBrowser` successfully. No database population/reset or credential changes.
+
+## 2026-10-13 — runnable desktop launcher file
+
+Placed `Showcase-KrishiByte.cmd` on the Windows desktop. This launcher uses the absolute project script path, so it runs correctly from the desktop instead of looking for a missing desktop `tools` folder. It forwards optional flags, including `-NoBrowser` for verification. Executed the actual desktop launcher with `-NoBrowser`: local showcase readiness check passed. Double-click normally to start/reuse the local website and open the showcase. Wampserver MySQL must be running; the project remains in D:\KrishiByte.
+
+## 2026-10-13 — registered buyers and district-first selling
+
+- Verified existing supported routes: collector → wholesaler, collector → retailer, wholesaler → retailer. Each proposal requires an existing active approved account; buyer acceptance moves the full lot and retains quantity, price and farmer provenance. Repeated collector/wholesale intermediaries remain supported.
+- Fixed buyer-list discoverability: the previous combined 50-name cap could hide wholesalers behind many shops. Added recipient-role filtering, owner/shop-name search, and shop/market/district labels. Collector defaults to wholesalers; wholesaler defaults to retail. Search and district/role filters survive transaction pagination.
+- Implemented the user's later district-first requirement: select recipient district, then role, then choose a matching registered recipient. Applied to collector, wholesale and optional farmer transfer workspaces. Empty/unselected districts do not offer buyers; proposal buttons stay disabled until eligible matches exist. Only eligible farmer → collector transfers are offered for farmer accounts. Retailers continue accepting deliveries/posting selling prices; customer handoffs remain disabled.
+- Server requires a selected recipient district and rejects a recipient registered outside it, independent of UI filtering. Unknown/unapproved/suspended recipients cannot receive a proposal. Transfer-location district defaults to the selected recipient district; explicit transfer location remains participant-entered. Collector/wholesale/retail registration now requires a district, and admin trading approval rejects missing district registration. Retail market/license requirements remain in place.
+- Added RegisteredBuyerHandoffTest covering all three requested routes through HTTP and acceptance, role discovery with >50 shops, shop-name searching, invalid/inactive/unapproved buyers, district isolation across seller roles, mismatched/missing destination rejection, and trader registration/approval requirements.
+- Verification: full suite after district-transfer changes **87 tests / 695 assertions PASS** on `krishibyte_test`; subsequent focused checks including the final registration/approval case **14 tests / 209 assertions PASS**. Final RegisteredBuyerHandoffTest run is recorded below. PHP lint/Pint, Blade compilation and diff checks passed. No working DB reset/schema mutation or real transfer submission.
+- Live browser: collector selected Dhaka, saw its two wholesalers in the proposal selector, then district-scoped Rafiq retail search returned one registered shop. Empty matches disabled proposals, and pagination retained district/role/search. Proof: `docs/screenshots/district-first-recipient-selector.png`.
+
+Showcase: open seller Workspace → select recipient district → select Wholesalers/Retail shops/Collectors → Find recipient → Propose custody handoff → choose listed buyer and lot/price → submit. The buyer opens Review handoff proposals and accepts/disputes. Retailers then record asking prices for received stock.
+
+Final transfer regression run: `php artisan test --compact --filter=RegisteredBuyerHandoffTest` → **5 passed / 104 assertions** after the final scalar recipient/district validation changes.

@@ -25,6 +25,8 @@ class User extends Authenticatable
         'password',
         'is_verified', 'verified_by_user_id', 'verification_date', 'verification_reason',
         'farmer_profile_public', 'grown_crop_ids', 'cultivation_notes',
+        'status_version', 'trading_approved', 'publication_consented_at', 'publication_withdrawn_at', 'consent_recorded_by', 'consent_method',
+        'marketplace_id', 'shop_name',
     ];
 
     protected $attributes = ['is_verified' => false];
@@ -41,12 +43,19 @@ class User extends Authenticatable
             'is_verified' => 'boolean', 'verification_date' => 'datetime',
             'password' => 'hashed', 'nid_or_trade_license' => 'encrypted',
             'farmer_profile_public' => 'boolean', 'grown_crop_ids' => 'array',
+            'trading_approved' => 'boolean', 'publication_consented_at' => 'datetime', 'publication_withdrawn_at' => 'datetime',
+            'status_version' => 'integer',
         ];
     }
 
     public function district(): BelongsTo
     {
         return $this->belongsTo(District::class);
+    }
+
+    public function marketplace(): BelongsTo
+    {
+        return $this->belongsTo(Marketplace::class);
     }
 
     public function batchesCreated(): HasMany

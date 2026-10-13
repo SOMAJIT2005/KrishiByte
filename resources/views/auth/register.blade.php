@@ -49,7 +49,7 @@
                             @error('role') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-md-6">
-                            <label for="district_id" class="form-label">Home District</label>
+                            <label for="district_id" class="form-label">District (required for traders)</label>
                             <select name="district_id" id="district_id" class="form-select">
                                 <option value="">-- Select District --</option>
                                 @foreach($districts as $district)
@@ -60,9 +60,28 @@
                             </select>
                         </div>
 
+                        <div class="col-12" id="shop-fields">
+                            <label for="shop_name" class="form-label">Retail Shop Name</label>
+                            <input name="shop_name" id="shop_name" class="form-control mb-3" maxlength="150" value="{{ old('shop_name') }}" @required(old('role') === 'retail')>
+                            <label for="marketplace_id" class="form-label">Registered Marketplace (required for retail shops)</label>
+                            <select name="marketplace_id" id="marketplace_id" class="form-select" @required(old('role') === 'retail')>
+                                <option value="">-- Select district, then market --</option>
+                                @foreach($markets as $market)
+                                    <option value="{{ $market->id }}" data-district="{{ $market->district_id }}" @selected(old('marketplace_id') == $market->id)>{{ $market->name }} · {{ $market->district->name }}{{ $market->is_demo ? ' (Demo)' : '' }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Your shop will be listed in this market after administrator trading approval.</div>
+                            @error('marketplace_id') <div class="text-danger small">{{ $message }}</div> @enderror
+                            @error('shop_name') <div class="text-danger small">{{ $message }}</div> @enderror
+                            @error('district_id') <div class="text-danger small">{{ $message }}</div> @enderror
+                        </div>
+
                         <div class="col-12">
-                            <label for="nid_or_trade_license" class="form-label">NID or Trade License No. (Optional)</label>
-                            <input type="text" name="nid_or_trade_license" id="nid_or_trade_license" class="form-control" value="{{ old('nid_or_trade_license') }}" placeholder="For vendor verification only">
+                            @php($requiresTradeLicense = in_array(old('role'), ['collector', 'retail'], true))
+                            <label for="nid_or_trade_license" id="identity-label" class="form-label">{{ $requiresTradeLicense ? 'Trade License Number (Required)' : 'NID or Trade License Number (Optional)' }}</label>
+                            <input type="text" name="nid_or_trade_license" id="nid_or_trade_license" class="form-control @error('nid_or_trade_license') is-invalid @enderror" value="{{ old('nid_or_trade_license') }}" maxlength="100" aria-describedby="identity-help" @required($requiresTradeLicense) placeholder="{{ $requiresTradeLicense ? 'Enter your trade license number' : 'For account verification' }}">
+                            <div id="identity-help" class="form-text">Collectors and retail shops must provide a trade license number. Administrator review is separate from registration.</div>
+                            @error('nid_or_trade_license') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 
                         <div class="col-md-6">
@@ -92,3 +111,37 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const role = document.getElementById('role');
+    const license = document.getElementById('nid_or_trade_license');
+    const district = document.getElementById('district_id');
+    const market = document.getElementById('marketplace_id');
+    function updateMarkets() {
+        for (const option of market.options) {
+            if (!option.value) continue;
+            option.hidden = option.disabled = option.dataset.district !== district.value;
+        }
+        if (market.selectedOptions[0]?.disabled) market.value = '';
+    }
+    function updateLicenseRequirement() {
+        const required = ['collector', 'retail'].includes(role.value);
+        license.required = required;
+        document.getElementById('identity-label').textContent = required
+            ? 'Trade License Number (Required)' : 'NID or Trade License Number (Optional)';
+        license.placeholder = required ? 'Enter your trade license number' : 'For account verification';
+        const retail = role.value === 'retail';
+        document.getElementById('shop-fields').hidden = !retail;
+        document.getElementById('shop_name').required = retail;
+        market.required = retail;
+        district.required = ['collector', 'wholesale', 'retail'].includes(role.value);
+        updateMarkets();
+    }
+    role.addEventListener('change', updateLicenseRequirement);
+    district.addEventListener('change', updateMarkets);
+    updateLicenseRequirement();
+});
+</script>
+@endpush

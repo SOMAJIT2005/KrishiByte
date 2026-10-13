@@ -1,6 +1,7 @@
 @extends('layouts.app')
 @section('title','Handoff proposals')
 @section('content')
+<a href="{{ route('corrections.index') }}" class="btn btn-outline-primary mb-3">Custody correction inbox</a>
 <h1 class="h3">Handoff proposals</h1><p class="text-muted">Review the exact quantity and price before accepting. Proposals expire after 48 hours and reserve the whole lot. Changing terms requires cancellation and a new proposal.</p>
 <a class="btn btn-outline-primary mb-3" href="{{ auth()->user()->isFarmer() ? route('farmer.handoff') : route('vendor.dashboard') }}">Back to workspace</a>
 @forelse($proposals as $proposal)

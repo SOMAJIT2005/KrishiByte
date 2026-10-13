@@ -3,6 +3,23 @@
 @section('title', "Batch journey: {$batch->batch_code}")
 
 @section('content')
+@if(str_starts_with($batch->batch_code, 'KB-MARKET-DEMO-'))
+<div class="alert alert-warning">Synthetic marketplace showcase: this lot, grower, accepted transfers and prices are illustrative.</div>
+@endif
+@if($batch->currentCustodian?->isRetail())
+<div class="card card-body mb-4">
+    <h2 class="h5">Retail shop & selling price</h2>
+    <div>{{ $batch->currentCustodian->shop_name ?? $batch->currentCustodian->name }} <x-verified-badge :user="$batch->currentCustodian" /></div>
+    <div>Registered lot: {{ number_format($batch->initial_quantity, 2) }} {{ $batch->unit }} · Available: {{ number_format($batch->available_quantity, 2) }} {{ $batch->unit }}</div>
+    <div class="text-muted">{{ $batch->currentCustodian->marketplace?->name ?? 'Marketplace not yet registered' }} · {{ $batch->currentCustodian->marketplace?->district?->name }}</div>
+    @if($retailPrice)
+    <strong class="fs-4 mt-2">BDT {{ number_format($retailPrice->price_per_unit, 2) }} / {{ $retailPrice->unit }}</strong>
+    <small>Shop asking price recorded {{ $retailPrice->created_at->timezone('Asia/Dhaka')->format('d M Y H:i') }}{{ $retailPrice->is_demo ? ' · Synthetic demo' : '' }}. This is a quoted selling price; individual customer purchases are not tracked.</small>
+    @else
+    <p class="mb-0">The shop has not posted a selling price for this batch yet.</p>
+    @endif
+</div>
+@endif
 <div class="alert alert-light border small">Batch review: <strong>{{ ucfirst($batch->verification_status) }}</strong>. {{ $batch->verification_status === 'verified' ? 'Provenance reviewed by an administrator.' : 'Participant-entered provenance awaiting administrator review.' }} Account badges are shown separately.</div>
 <div class="row g-3 mb-4">
     <div class="col-12">
@@ -17,7 +34,7 @@
                 <h2 class="fw-bold mb-0" style="color: var(--kb-text);">
                     <i class="bi bi-route me-2" style="color: var(--kb-primary-light);"></i> {{ $batch->batch_code }}
                 </h2>
-                <small class="text-muted">Registered by {{ $batch->farmer->name }} <x-verified-badge :user="$batch->farmer" /> on {{ $batch->created_at->timezone('Asia/Dhaka')->format('d M Y, h:i A') }}</small>
+                <small class="text-muted">Registered by {{ $batch->farmer->farmer_profile_public ? $batch->farmer->name : 'Private farmer' }} <x-verified-badge :user="$batch->farmer" /> on {{ $batch->created_at->timezone('Asia/Dhaka')->format('d M Y, h:i A') }}</small>
             </div>
             <div class="d-flex gap-2 ms-auto">
                 <span class="badge bg-light text-dark border px-3 py-2 d-inline-flex align-items-center">
@@ -107,7 +124,7 @@
                         <div class="col-md-4 col-6">
                             <div class="p-3 rounded border d-flex flex-column align-items-center text-center h-100" style="background: #fef2f2; border-color: var(--kb-danger); border-width: 2px;">
                                 <i class="bi bi-price-tag d-block fs-2 mb-2" style="color: var(--kb-danger);"></i>
-                                <div class="text-muted small mb-1">Current Market Price</div>
+                                <div class="text-muted small mb-1">Latest Custody Price</div>
                                 <div class="fw-bold fs-4" style="color: var(--kb-danger); font-family: monospace;">
                                     ৳ {{ number_format($batch->latest_price, 2) }}
                                 </div>
@@ -169,7 +186,7 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <div class="small text-muted d-block mb-1">Registered By</div>
-                        <div class="fw-semibold" style="color: var(--kb-text);">{{ $batch->farmer->name }} <x-verified-badge :user="$batch->farmer" /></div>
+                        <div class="fw-semibold" style="color: var(--kb-text);">{{ $batch->farmer->farmer_profile_public ? $batch->farmer->name : 'Private farmer' }} <x-verified-badge :user="$batch->farmer" /></div>
                         <span class="badge bg-light text-dark border badge-role ms-1">Farmer</span>
                     </div>
                     <div class="col-md-4">
@@ -197,6 +214,7 @@
             <div class="card shadow-sm mb-3" style="border-left: 4px solid {{ $tx->validation_status === 'flagged' ? 'var(--kb-danger)' : 'var(--kb-primary-light)' }};">
                 <div class="card-body p-4">
                     <span class="badge bg-secondary mb-2">{{ str_replace('_',' ', $tx->confirmation_status) }}</span>
+                    @if($tx->validation_status !== 'flagged' && $tx->anomalyFlags->isNotEmpty())<span class="badge bg-success mb-2">Historical price signal · review resolved</span>@endif
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge px-2 py-1 d-inline-flex align-items-center" style="font-size: 0.6875rem;" {{ $tx->validation_status === 'flagged' ? 'style="background: var(--kb-danger); color: #fff;"' : '' }}>
@@ -218,7 +236,7 @@
                         <div class="col-md-3">
                             <div class="small text-muted d-block mb-1">Custody Transfer</div>
                             <div class="small">
-                                <strong>{{ $tx->seller->name }} <x-verified-badge :user="$tx->seller" /></strong>
+                                <strong>{{ $tx->seller->role === 'farmer' && !$tx->seller->farmer_profile_public ? 'Private farmer' : $tx->seller->name }} <x-verified-badge :user="$tx->seller" /></strong>
                                 <span class="badge-role bg-light text-dark border ms-1">{{ $tx->seller->role }}</span>
                                 <span class="text-muted mx-1" style="font-size: 0.875rem;">→</span>
                                 <strong>{{ $tx->stage === 'retail_sale' ? 'Private retail customer' : $tx->buyer?->name }} @if($tx->stage !== 'retail_sale')<x-verified-badge :user="$tx->buyer" />@endif</strong>
@@ -237,7 +255,7 @@
                         </div>
                         <div class="col-md-2">
                             <div class="small text-muted d-block mb-1">Quantity</div>
-                            <div class="fw-semibold" style="color: var(--kb-text);">{{ number_format($tx->quantity, 0) }} {{ $tx->unit }}</div>
+                            <div class="fw-semibold" style="color: var(--kb-text);">{{ number_format($tx->quantity, 2) }} {{ $tx->unit }}</div>
                         </div>
                         <div class="col-md-4">
                             <div class="small text-muted d-block mb-1">Transfer Price</div>
@@ -250,7 +268,7 @@
                                     </span>
                                     @if($tx->markup_percent !== null)
                                         <span class="badge px-2 py-1 ms-2 d-inline-flex align-items-center" style="font-size: 0.6875rem;" {{ $tx->markup_percent > 30 ? 'style="background: var(--kb-warning); color: #1e293b;"' : 'style="background: var(--kb-bg); color: var(--kb-text); border: 1px solid var(--kb-border);' }}>
-                                            +{{ number_format($tx->markup_percent, 1) }}% markup
+                                            {{ $tx->markup_percent > 0 ? '+' : '' }}{{ number_format($tx->markup_percent, 1) }}% markup
                                         </span>
                                     @endif
                                 </div>

@@ -13,8 +13,8 @@ $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 $pdo = DB::connection()->getPdo();
 $backupDate = $argv[1] ?? '20261012';
-if (! preg_match('/^\d{8}$/', $backupDate)) {
-    throw new RuntimeException('Use an eight-digit backup date.');
+if (! preg_match('/^\d{8}(?:_\d{2})?$/', $backupDate)) {
+    throw new RuntimeException('Use an eight-digit date with an optional two-digit snapshot suffix.');
 }
 $directory = 'D:/KrishiByte-security-backup-'.$backupDate;
 $restoreName = 'krishibyte_security_restore_'.$backupDate;

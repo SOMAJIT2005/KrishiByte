@@ -47,3 +47,32 @@ Screenshots are in `docs/screenshots`. These checks exercise representative flow
 ## Known limits
 
 A lot has one custodian: intermediate transfers move its full quantity. Partial retail sales work. Split/merge stock, losses, continuous GPS, real SMS delivery and public hosting were not implemented.
+
+## 2026-10-13 final review and market verification
+
+Supersedes earlier retailer-sale walkthroughs and global reviewer permissions. Full mapping/role matrix: [review remediation](REVIEW_REMEDIATION_2026-10-13.md).
+
+- `php artisan test --compact`: **81 passed / 585 assertions**, PHP 8.2 + MySQL `krishibyte_test`. Tests use transactions/owned fixtures; the application database was not reset. Added ReviewRemediationTest, ReviewSafeguardsTest, MarketplaceWorkflowTest and the trade-license tests.
+- New checks include DECIMAL endpoints; mixed/closed/voided flags; participant corrections and assisted farmer corrections; explicit account status/version retries; scoped reviewer evidence/decisions/conflicts; duplicate enrollment, single-use access and withdrawal; crop/unit separation; fractional display; daily/global evidence quotas and orphan/lock cleanup; matching district/market registration; retailer quote ownership/idempotency; no customer handoff or stock deduction; multi-origin market results and admin-only market creation.
+- `DB_DATABASE=krishibyte_test php tools/concurrency-check.php` (set variable in PowerShell): PASS with overlapping MySQL processes. Duplicate acceptance produces one record; retained historical retail stock races do not oversell or deduct twice. This tests legacy import/service invariants, not a currently available customer-sale page. No independently raced staff-status test in this round.
+- `php artisan view:cache`, changed PHP Pint and `git diff --check`: PASS after final formatting. Population rerun preserved the 39 markets, 78 shops, 156 market lots and 312 initial market quotes.
+- `php tools/security-backup.php 20261013_02`: pre-change exact restore of 23 tables. `php tools/security-backup.php 20261013_03`: post-change exact restore of 28 tables. Private matching environment/key and evidence are outside the repository; pause writes for coordinated recovery.
+- Live localhost browser: destination Dhaka then its Wholesale Market showed exactly two demo shops and four traced lots from multiple origins; journey map/timeline ended at retailer with a separate asking price. Registration switched to Retail: district/shop/market/license became required and only Dhaka markets were selectable. Retail shortcut opened price workspace; BDT76/kg was posted for KB-DEMO-RETAIL, history/public trace updated, 450kg stock unchanged. Admin marketplace form/list rendered; actual creation/authorization tested by HTTP tests.
+
+Screenshots: `market-traceability.png`, `retail-market-registration.png`, `retail-selling-price.png`, `admin-marketplaces.png` under `docs/screenshots`. Remaining MFA, verified contact delivery, production hosting/backup/retention, split lots and load/every-browser limits remain documented; these are representative local checks.
+
+Final responsive cards were rechecked live on Barishal's Neighbourhood Market and the focused market suite passed after the view change. All 39 demo markets were independently checked for two shops/four lots/multiple origins. Changed PHP files passed syntax lint. The post-change backup also contains a matching source snapshot.
+
+## Authority pagination UI correction — 13 October 2026
+
+Switched Laravel's paginator to its built-in Bootstrap 5 view, matching the project's styles. PHP lint and the existing all-role workspace render test passed (1 test / 15 assertions). Live review desk pagination is compact and Next retains crop_id=5 while changing reports_page=2 (11–16 of 16). Screenshot: `docs/screenshots/authority-pagination-fixed.png`.
+
+## Authority stage chart — 13 October 2026
+
+Focused run: `php artisan test --compact --filter='AuthorityChartTest|UpgradeWorkflowTest|ReviewRemediationTest|ReviewSafeguardsTest'` → **25 passed / 171 assertions**. New coverage checks stage ordering, independent averages/ranges/sample counts, selected crop/unit/assigned-district isolation, voided/customer-sale exclusion, null markup and empty results. Live checks exercised Price/Markup switching, horizontal bars, exact-value table and an empty chart error log. Source lint, Pint, Blade compilation and whitespace checks passed. Screenshot: `authority-stage-chart-fixed.png`. This focused result does not replace the earlier full-suite result.
+
+## District-first registered buyer workflow — 13 October 2026
+
+Collector → wholesale/retail and wholesale → retail are supported with registered active approved recipients and buyer acceptance. Seller workspaces now select recipient district first, then role/name; results exclude other districts/inactive/unapproved accounts. The server checks district membership before proposing. New trader registration and trading approval require district registration. Retail customer handoffs remain disabled.
+
+Full run after the district-transfer changes: 87 tests / 695 assertions. Final focused registration/market/workspace checks: 14 tests / 209 assertions. RegisteredBuyerHandoffTest covers HTTP transfers/provenance, >50-shop role discoverability, shop searching, recipient/district restrictions across farmer/collector/wholesale workspaces, and registration/approval requirements. Live collector checks showed Dhaka wholesalers and Rafiq's matching shop; screenshots saved. No real transfer submitted in live QA.

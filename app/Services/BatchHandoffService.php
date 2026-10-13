@@ -87,6 +87,11 @@ class BatchHandoffService
             $spread = CalculationService::calculateSpread($previousPrice, $pricePerUnit);
             $markupPercent = CalculationService::calculateMarkupPercent($previousPrice, $pricePerUnit);
             $marginPercent = CalculationService::calculateMarginPercent($previousPrice, $pricePerUnit);
+            foreach ([$markupPercent, $marginPercent] as $percentage) {
+                if ($percentage !== null && (! is_finite($percentage) || abs($percentage) > 99999999999999.99)) {
+                    throw new InvalidArgumentException('Calculated percentage exceeds the supported DECIMAL(16,2) range.');
+                }
+            }
 
             $transaction = Transaction::create([
                 'batch_id' => $batch->id,
@@ -153,6 +158,9 @@ class BatchHandoffService
 
     private function validateTerms(Batch $batch, array $data): array
     {
+        if (DB::table('correction_requests')->where('status', 'pending')->whereIn('transaction_id', Transaction::where('batch_id', $batch->id)->select('id'))->exists()) {
+            throw new InvalidArgumentException('Resolve the pending custody correction before moving this lot.');
+        }
         if ($batch->status !== 'active' || (float) $batch->available_quantity <= 0) {
             throw new InvalidArgumentException('Only an active batch with available stock can be transferred.');
         }
@@ -198,6 +206,13 @@ class BatchHandoffService
         $actor = User::findOrFail($data['recorded_by_user_id']);
         if ($actor->account_status !== 'active' || $seller->account_status !== 'active' || ($buyer && $buyer->account_status !== 'active')) {
             throw new InvalidArgumentException('Both participants must have active accounts.');
+        }
+        if (! (($data['_legacy_import'] ?? false) && app()->runningInConsole())) {
+            foreach ([$seller, $buyer] as $participant) {
+                if ($participant && $participant->isVendor() && ! $participant->trading_approved) {
+                    throw new InvalidArgumentException('Trading approval is required for business participants. Request administrator review.');
+                }
+            }
         }
         if ($actor->id !== $seller->id && ! ($seller->role === 'farmer' && $actor->id === $buyer?->id && $buyer?->role === 'collector')) {
             throw new InvalidArgumentException('Only the custodian can record this transfer.');
@@ -316,6 +331,10 @@ class BatchHandoffService
 
     public function recordRetailSale(array $data, string $requestKey): Transaction
     {
+        if (! app()->runningInConsole()) {
+            throw new InvalidArgumentException('Customer sales are retained only for historical CLI fixtures. Retail shops post selling prices.');
+        }
+
         return DB::transaction(function () use ($data, $requestKey) {
             $batch = Batch::lockForUpdate()->findOrFail($data['batch_id']);
             $actor = User::findOrFail($data['recorded_by_user_id']);
@@ -339,9 +358,9 @@ class BatchHandoffService
     /**
      * Authorized void of a transaction with documented reason and audit logging
      */
-    public function voidTransaction(int $transactionId, int $actorId, string $reason): Transaction
+    public function voidTransaction(int $transactionId, int $actorId, string $reason, ?int $correctionId = null): Transaction
     {
-        return DB::transaction(function () use ($transactionId, $actorId, $reason) {
+        return DB::transaction(function () use ($transactionId, $actorId, $reason, $correctionId) {
             $batchId = Transaction::findOrFail($transactionId)->batch_id;
             $batch = Batch::lockForUpdate()->findOrFail($batchId);
             $tx = Transaction::lockForUpdate()->findOrFail($transactionId);
@@ -351,8 +370,16 @@ class BatchHandoffService
             }
 
             $actor = User::findOrFail($actorId);
-            if ($actor->account_status !== 'active' || (! $actor->isAdmin() && $tx->recorded_by_user_id !== $actorId) || mb_strlen(trim($reason)) < 5) {
+            $correction = $correctionId ? DB::table('correction_requests')->where('id', $correctionId)->lockForUpdate()->first() : null;
+            $acceptedCorrection = $correction && $correction->transaction_id === $tx->id && $correction->counterparty_id === $actorId && $correction->status === 'accepted';
+            if ($tx->stage !== 'retail_sale' && ! $acceptedCorrection) {
+                throw new InvalidArgumentException('Custody corrections require a request accepted by the affected counterparty.');
+            }
+            if ($actor->account_status !== 'active' || (! $acceptedCorrection && ($actor->role !== 'retail' || $tx->recorded_by_user_id !== $actorId)) || mb_strlen(trim($reason)) < 5) {
                 throw new InvalidArgumentException('An authorized actor and correction reason are required.');
+            }
+            if (HandoffProposal::where('batch_id', $batch->id)->where('status', 'proposed')->where('expires_at', '>', now())->exists()) {
+                throw new InvalidArgumentException('Resolve the pending handoff before correcting this lot.');
             }
             if (Transaction::where('batch_id', $batch->id)->where('is_voided', false)->where('sequence_no', '>', $tx->sequence_no)->exists()) {
                 throw new InvalidArgumentException('Only the latest active transaction can be voided. Reverse later handoffs first.');

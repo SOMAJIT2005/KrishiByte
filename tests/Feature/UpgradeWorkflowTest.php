@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\BatchHandoffService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -25,7 +26,14 @@ class UpgradeWorkflowTest extends TestCase
 
     private function person(string $role): User
     {
-        return User::factory()->create(['role' => $role, 'account_status' => 'active']);
+        $person = User::factory()->create(['role' => $role, 'trading_approved' => true, 'account_status' => 'active']);
+        if (in_array($role, ['authority', 'admin'], true)) {
+            foreach (District::pluck('id') as $districtId) {
+                DB::table('review_assignments')->insert(['user_id' => $person->id, 'district_id' => $districtId, 'assigned_by' => $person->id, 'reason' => 'Explicit regression test assignment', 'created_at' => now(), 'updated_at' => now()]);
+            }
+        }
+
+        return $person;
     }
 
     private function batch(User $farmer): Batch
@@ -152,7 +160,7 @@ class UpgradeWorkflowTest extends TestCase
 
     public function test_every_role_workspace_and_batch_review_pages_render(): void
     {
-        foreach (['admin' => 'admin.dashboard', 'authority' => 'authority.dashboard', 'farmer' => 'farmer.dashboard', 'collector' => 'vendor.dashboard', 'wholesale' => 'vendor.dashboard', 'retail' => 'vendor.dashboard'] as $role => $route) {
+        foreach (['admin' => 'admin.dashboard', 'authority' => 'authority.dashboard', 'farmer' => 'farmer.dashboard', 'collector' => 'vendor.dashboard', 'wholesale' => 'vendor.dashboard', 'retail' => 'retail.prices'] as $role => $route) {
             $this->actingAs($this->person($role))->get(route($route))->assertOk();
             $this->get(route('reports.mine'))->assertOk();
         }

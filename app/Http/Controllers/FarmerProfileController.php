@@ -12,7 +12,9 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AuditLoggerService;
 use App\Services\EvidenceService;
+use App\Services\FarmerAccess;
 use App\Services\FarmPurchaseService;
+use App\Services\ReviewAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -31,14 +33,15 @@ class FarmerProfileController extends Controller
     public function show(int $id)
     {
         $farmer = User::where('role', 'farmer')->where('account_status', 'active')->with('district')->findOrFail($id);
-        abort_unless($farmer->farmer_profile_public || auth()->id() === $farmer->id || auth()->user()?->isAdmin(), 404);
+        abort_unless($farmer->farmer_profile_public || FarmerAccess::id() === $farmer->id || auth()->user()?->isAdmin(), 404);
         $batches = Batch::with('crop')->where('farmer_id', $id)->where('status', '!=', 'voided')->where('verification_status', '!=', 'rejected')->get();
         $sales = Transaction::where('seller_id', $id)->where('stage', 'farmer_to_collector')->where('is_voided', false)->get();
-        $cropStats = $batches->groupBy('crop_id')->map(function ($lots) use ($sales) {
+        $cropStats = $batches->groupBy(fn ($lot) => $lot->crop_id.':'.$lot->unit)->map(function ($lots) use ($sales) {
             $crop = $lots->first()->crop;
-            $cropSales = $sales->whereIn('batch_id', $lots->pluck('id'))->where('unit', $crop->unit);
+            $unit = $lots->first()->unit;
+            $cropSales = $sales->whereIn('batch_id', $lots->pluck('id'))->where('unit', $unit);
 
-            return ['crop' => $crop, 'lots' => $lots->count(), 'recorded_quantity' => $lots->where('unit', $crop->unit)->sum('initial_quantity'), 'sold_quantity' => $cropSales->sum('quantity'), 'sale_count' => $cropSales->count()];
+            return ['crop' => $crop, 'unit' => $unit, 'lots' => $lots->count(), 'recorded_quantity' => $lots->sum('initial_quantity'), 'sold_quantity' => $cropSales->sum('quantity'), 'sale_count' => $cropSales->count()];
         });
         $grownCrops = Crop::whereIn('id', $farmer->grown_crop_ids ?? [])->get();
         $ratings = FarmerRating::where('farmer_id', $id)->where('status', 'approved')->latest()->paginate(10);
@@ -59,7 +62,7 @@ class FarmerProfileController extends Controller
     {
         $data = $request->validate(['name' => ['required', 'string', 'max:150'], 'phone' => ['required', 'regex:/^\+?[0-9]{10,15}$/'], 'district_id' => ['required', 'exists:districts,id'], 'grown_crop_ids' => ['required', 'array', 'min:1', 'max:30'], 'grown_crop_ids.*' => ['integer', 'distinct', 'exists:crops,id'], 'cultivation_notes' => ['nullable', 'string', 'max:1000'], 'public_profile_consent' => ['accepted']]);
         unset($data['public_profile_consent']);
-        $entry = FarmerEnrollment::create($data + ['tracking_code' => (string) Str::uuid()]);
+        $entry = FarmerEnrollment::create($data + ['tracking_code' => (string) Str::uuid(), 'consented_at' => now()]);
         AuditLoggerService::log(action: 'FARMER_ENROLLMENT_REQUESTED', targetType: 'FarmerEnrollment', targetId: $entry->id);
 
         return redirect()->route('farmers.enroll')->with('success', 'Enrollment submitted. Reference: '.$entry->tracking_code.'. An administrator will review it before publishing your profile. No farmer login is required.');
@@ -85,21 +88,34 @@ class FarmerProfileController extends Controller
     {
         $enrollments = FarmerEnrollment::with('district')->where('status', 'pending')->latest()->paginate(15, ['*'], 'enrollment_page');
         $ratings = FarmerRating::with('farmer')->where('status', 'pending')->latest()->paginate(15, ['*'], 'rating_page');
+        $accessRequests = DB::table('farmer_access_requests')->where('status', 'pending')->latest('id')->get();
+        $existingFarmers = User::where('role', 'farmer')->orderBy('name')->get();
 
-        return view('admin.farmer-review', compact('enrollments', 'ratings'));
+        return view('admin.farmer-review', compact('enrollments', 'ratings', 'accessRequests', 'existingFarmers'));
     }
 
     public function reviewEnrollment(Request $request, int $id)
     {
-        $data = $request->validate(['decision' => ['required', 'in:approved,rejected'], 'reason' => ['required', 'string', 'min:5', 'max:500']]);
+        $data = $request->validate(['decision' => ['required', 'in:approved,rejected'], 'reason' => ['required', 'string', 'min:5', 'max:500'], 'existing_farmer_id' => ['nullable', 'integer', 'exists:users,id']]);
         $farmer = DB::transaction(function () use ($data, $id) {
+            DB::select("SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE");
             $entry = FarmerEnrollment::lockForUpdate()->findOrFail($id);
             if ($entry->status !== 'pending') {
                 return $entry->farmer_id;
             }
             $farmerId = null;
             if ($data['decision'] === 'approved') {
-                $farmer = User::create(['name' => $entry->name, 'phone' => $entry->phone, 'email' => 'enrolled.'.Str::uuid().'@profiles.krishibyte.invalid', 'password' => Str::random(64), 'role' => 'farmer', 'account_status' => 'active', 'district_id' => $entry->district_id, 'farmer_profile_public' => true, 'grown_crop_ids' => $entry->grown_crop_ids, 'cultivation_notes' => $entry->cultivation_notes]);
+                abort_unless($entry->consented_at, 422, 'Obtain a fresh enrollment with publication consent before approval.');
+                // Serialize approvals across administrators to avoid duplicate identity creation.
+                $candidates = User::where('role', 'farmer')->where(fn ($q) => $q->where('phone', $entry->phone)->orWhere('name', $entry->name))->lockForUpdate()->get();
+                $farmer = ! empty($data['existing_farmer_id']) ? User::where('role', 'farmer')->lockForUpdate()->findOrFail($data['existing_farmer_id']) : $candidates->first(fn ($user) => $user->name === $entry->name && $user->phone === $entry->phone && $user->district_id === $entry->district_id);
+                abort_if(! $farmer && $candidates->isNotEmpty(), 422, 'Possible duplicate identity: review candidates and explicitly link the correct farmer profile. Shared phones alone do not identify a person.');
+                $attributes = ['farmer_profile_public' => true, 'grown_crop_ids' => $entry->grown_crop_ids, 'cultivation_notes' => $entry->cultivation_notes, 'publication_consented_at' => $entry->consented_at, 'publication_withdrawn_at' => null, 'consent_recorded_by' => auth()->id(), 'consent_method' => 'Enrollment checkbox assertion reviewed: '.$data['reason']];
+                if ($farmer) {
+                    $farmer->update($attributes);
+                } else {
+                    $farmer = User::create($attributes + ['name' => $entry->name, 'phone' => $entry->phone, 'email' => 'enrolled.'.Str::uuid().'@profiles.krishibyte.invalid', 'password' => Str::random(64), 'role' => 'farmer', 'account_status' => 'active', 'district_id' => $entry->district_id]);
+                }
                 $farmerId = $farmer->id;
             }
             $entry->update(['status' => $data['decision'], 'farmer_id' => $farmerId, 'reviewed_by_user_id' => auth()->id(), 'review_reason' => $data['reason']]);
@@ -129,6 +145,7 @@ class FarmerProfileController extends Controller
 
     public function purchaseForm(Request $request)
     {
+        abort_unless($request->user()->trading_approved, 403, 'Request trading approval before recording farmer agreements.');
         $request->validate(['farmer_id' => ['nullable', 'exists:users,id'], 'batch_id' => ['nullable', 'exists:batches,id']]);
         $farmers = User::where('role', 'farmer')->where('account_status', 'active')->where('farmer_profile_public', true)->orderBy('name')->get();
         $crops = Crop::where('is_active', true)->where('unit_needs_review', false)->orderBy('name')->get();
@@ -140,6 +157,7 @@ class FarmerProfileController extends Controller
 
     public function purchase(Request $request, FarmPurchaseService $service)
     {
+        abort_unless($request->user()->trading_approved, 403, 'Trading approval is required before uploading agreements.');
         $data = $request->validate(['farmer_id' => ['required', 'integer', 'exists:users,id'], 'crop_id' => ['required', 'integer', 'exists:crops,id'], 'batch_id' => ['nullable', 'integer', 'exists:batches,id'], 'quantity' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'], 'price_per_unit' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:100000'], 'district_id' => ['required', 'integer', 'exists:districts,id'], 'harvest_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Dhaka')->toDateString()], 'market_name' => ['nullable', 'string', 'max:255'], 'witness_name' => ['required', 'string', 'max:150'], 'agreement_read_aloud' => ['accepted'], 'request_key' => ['required', 'uuid'], 'agreement_photo' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048']]);
         unset($data['agreement_photo']);
         $evidence = EvidenceService::store($request->file('agreement_photo'));
@@ -161,8 +179,13 @@ class FarmerProfileController extends Controller
 
     public function agreement(int $id)
     {
+        if (! auth()->check() && ! FarmerAccess::id()) {
+            return redirect()->route('login');
+        }
         $purchase = FarmPurchase::findOrFail($id);
-        abort_unless(auth()->user()->isAuthority() || in_array(auth()->id(), [$purchase->collector_id, $purchase->farmer_id], true), 403);
+        if (FarmerAccess::id() !== $purchase->farmer_id && ! in_array(auth()->id(), [$purchase->collector_id, $purchase->farmer_id], true)) {
+            ReviewAccess::authorize((int) $purchase->terms['district_id'], $purchase->batch_id);
+        }
         abort_unless(Storage::disk('local')->exists($purchase->evidence_path), 404);
 
         return Storage::disk('local')->response($purchase->evidence_path, null, ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);

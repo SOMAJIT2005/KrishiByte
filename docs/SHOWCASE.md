@@ -28,3 +28,17 @@ The fixture `docs/screenshots/demo-agreement.png` is explicitly synthetic and ma
 Local seeded credentials (use only in the local demo): admin@krishibyte.local / AdminPass123!; authority@krishibyte.local / AuthorityPass123!; farmer.rahim@krishibyte.local / FarmerPass123!; collector.karim@krishibyte.local / CollectorPass123!; wholesale.hasan@krishibyte.local / WholesalePass123!; retail.rafiq@krishibyte.local / RetailPass123!; consumer.tariq@krishibyte.local / ConsumerPass123!. Existing changed passwords are preserved by population. Role shortcuts are the easiest way to switch; admin sensitive actions still ask for the current password.
 
 To verify without opening a browser, run `tools/Start-Showcase.ps1 -NoBrowser` or `tools/Populate-Showcase.ps1 -NoBrowser`. Local scripts must be permitted by your normal Windows execution policy; these files do not override it. Website port defaults to 8000; MySQL port is 3306. `-Port 8011` is available for an isolated launcher check. Logs are in `storage/logs`. This is a source-project launcher, not a standalone installer or production server.
+
+## 2026-10-13 — market lookup and selling-price walkthrough
+
+This replaces the earlier retail partial-sale walkthrough. On the showcase, choose Retail → Shop selling prices → Review incoming goods to accept a delivery. Select KB-DEMO-RETAIL, post BDT76/kg, then open View my market. Received stock stays 450kg; the public quote changes. Individual customer purchases are not logged. Old partial/sold-out scenarios are historical fixtures.
+
+Public demonstration: Traceability → Dhaka → Illustrative Dhaka Wholesale Market → Show goods & shops. Show its two shops and four lots from multiple origins, prices and journey links. Switch to another district/market to demonstrate destination routing. All 39 seeded marketplaces across 13 configured districts have examples. The project does not claim to contain every actual Bangladesh market.
+
+Admin demonstration: open Admin → Manage district marketplaces, choose a district, enter a unique market name and save after password confirmation. Register a retail shop using that district, its marketplace, shop name and trade license. Admin must approve trading separately from any verified badge. Newly added empty markets acquire labelled demo shops/lots when `Populate-Showcase.cmd` is run again locally.
+
+Farmer support: `/farmer-access` accepts an assistance request without granting access. Admin verifies identity/contact independently and privately delivers the expiring code. Redeem it to read own private agreements, request a correction or withdraw publication. Collector acceptance is required for custody correction. Do not demonstrate this with someone else's real identity or evidence.
+
+## District-first selling to registered participants
+
+In Collector or Wholesale Workspace, choose recipient district first, then Wholesalers, Retail shops or Collectors, optionally search a name/shop, and press Find recipient. Propose custody handoff now offers only active approved matching accounts. Collector → wholesale, collector → retail and wholesale → retail are supported; repeated intermediaries remain possible. The intended recipient accepts in Review handoff proposals before custody moves. The whole lot, price, quantity and farmer provenance stay together. Retailers receive goods and post selling prices without customer handoffs. Optional farmer-account transfers offer collectors only.

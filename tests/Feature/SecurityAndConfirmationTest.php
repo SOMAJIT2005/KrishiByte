@@ -47,7 +47,14 @@ class SecurityAndConfirmationTest extends TestCase
 
     private function person(string $role): User
     {
-        return User::factory()->create(['role' => $role, 'account_status' => 'active']);
+        $person = User::factory()->create(['role' => $role, 'trading_approved' => true, 'account_status' => 'active']);
+        if ($role === 'admin') {
+            foreach (District::pluck('id') as $districtId) {
+                DB::table('review_assignments')->insert(['user_id' => $person->id, 'district_id' => $districtId, 'assigned_by' => $person->id, 'reason' => 'Explicit QA scope', 'created_at' => now(), 'updated_at' => now()]);
+            }
+        }
+
+        return $person;
     }
 
     private function lot(User $owner): Batch
@@ -177,7 +184,7 @@ class SecurityAndConfirmationTest extends TestCase
         $this->assertEquals($retail->id, AuditLog::where('target_type', 'Transaction')->where('target_id', $tx->id)->first()->after_payload['custodian_id']);
         $consumer = $this->person('consumer');
         $service->recordRetailSale(array_replace($terms, ['buyer_id' => $consumer->id]), (string) Str::uuid());
-        $this->get(route('public.traceability.show', $lot->batch_code))->assertOk()->assertDontSee($consumer->name)->assertDontSee('PRIVATE FARM ADDRESS')->assertDontSee('24.1234567')->assertSee('Private retail customer');
+        $this->get(route('public.traceability.show', $lot->batch_code))->assertOk()->assertDontSee($consumer->name)->assertDontSee('PRIVATE FARM ADDRESS')->assertDontSee('24.1234567')->assertDontSee('Private retail customer')->assertSee('Retail shop & selling price', false);
         $this->actingAs($this->person('collector'))->get(route('transactions.receipt', $tx->id))->assertForbidden();
         $this->actingAs($this->person('admin'))->get(route('admin.batches.detail', $lot->id))->assertOk();
         $this->actingAs($retail)->get(route('transactions.receipt', $tx->id))->assertOk()->assertHeader('Cache-Control', 'no-store, private');

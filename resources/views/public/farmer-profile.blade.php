@@ -1,6 +1,7 @@
 @extends('layouts.app')
 @section('title','Farmer Profile')
 @section('content')
+<a href="{{ route('farmers.access') }}" class="btn btn-outline-primary mb-3">Farmer private access, corrections & consent support</a>
 <div class="card card-body p-4 mb-4"><span class="small text-muted">FARMER PROFILE #{{ $farmer->id }}</span><h1 class="fw-bold">{{ $farmer->name }} <x-verified-badge :user="$farmer" /></h1><p>{{ $farmer->district?->name ?? 'District not provided' }}</p><p class="mb-2">{{ $farmer->cultivation_notes }}</p><div><strong>Declared crops grown:</strong> {{ $grownCrops->pluck('name')->join(', ') ?: 'Not yet declared' }}</div><small class="text-muted">Growing details are farmer declarations. Recorded lots are not a measurement of total farm production. Contact details and handwritten agreements are private.</small>
 @if(auth()->user()?->isCollector())
 <a class="btn btn-primary align-self-start mt-3" href="{{ route('vendor.farm-purchase',['farmer_id'=>$farmer->id]) }}">Record a purchase from this farmer</a>
@@ -8,7 +9,7 @@
 </div>
 <div class="card mb-4"><div class="card-header"><h2 class="h5 mb-0">Crops & recorded sales</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Crop / unit</th><th>Harvest lots</th><th>Recorded quantity</th><th>Sold quantity</th><th>Sales</th></tr></thead><tbody>
 @forelse($cropStats as $row)
-<tr><td>{{ $row['crop']->name }} / {{ $row['crop']->unit }}</td><td>{{ $row['lots'] }}</td><td>{{ number_format($row['recorded_quantity'],2) }}</td><td>{{ number_format($row['sold_quantity'],2) }}</td><td>{{ $row['sale_count'] }}</td></tr>
+<tr><td>{{ $row['crop']->name }} / {{ $row['unit'] }}</td><td>{{ $row['lots'] }}</td><td>{{ number_format($row['recorded_quantity'],2) }}</td><td>{{ number_format($row['sold_quantity'],2) }}</td><td>{{ $row['sale_count'] }}</td></tr>
 @empty
 <tr><td colspan="5">No recorded crop lots yet. A collector can create the first lot when purchasing.</td></tr>
 @endforelse

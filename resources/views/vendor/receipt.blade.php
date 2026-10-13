@@ -1,6 +1,9 @@
 @extends('layouts.app')
 @section('title','Transaction receipt')
 @section('content')
+@if(!$transaction->is_voided && $transaction->stage !== 'retail_sale' && in_array(auth()->id(),[$transaction->seller_id,$transaction->buyer_id],true))
+<div class="card card-body mb-3"><h2 class="h5">Request a custody correction</h2><p>The counterparty must accept before stock returns to the seller. Accepted history is retained.</p><form method="POST" action="{{ route('corrections.store',$transaction->id) }}">@csrf<input type="hidden" name="request_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}"><label for="correction-reason">Correction reason</label><textarea id="correction-reason" name="reason" class="form-control mb-2" required minlength="5" maxlength="1000"></textarea><button class="btn btn-outline-primary">Request correction</button> <a href="{{ route('corrections.index') }}">Your correction inbox</a></form></div>
+@endif
 @php($farmAgreement = \App\Models\FarmPurchase::where('transaction_id',$transaction->id)->first())
 @if($farmAgreement)
 <div class="alert alert-info">Collector attested this farmer purchase using a handwritten agreement. Witness: {{ $farmAgreement->witness_name }}. Farmer consent, signature and payment have not been independently verified. <a href="{{ route('farmers.agreement',$farmAgreement->id) }}">View private agreement</a> · <a href="{{ route('farmers.show',$farmAgreement->farmer_id) }}">Farmer profile</a></div>

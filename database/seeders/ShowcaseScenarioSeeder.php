@@ -36,7 +36,7 @@ class ShowcaseScenarioSeeder extends Seeder
         try {
             DB::transaction(function () use ($roles, $farmer, $bogura, $dhaka, &$ownedFiles) {
                 if (! $farmer->grown_crop_ids) {
-                    $farmer->update(['farmer_profile_public' => true, 'grown_crop_ids' => Crop::where('is_active', true)->pluck('id')->all(), 'cultivation_notes' => $farmer->cultivation_notes ?: 'Illustrative demo farmer growing seasonal vegetables and rice. Records are synthetic showcase scenarios.']);
+                    $farmer->update(['grown_crop_ids' => Crop::where('is_active', true)->pluck('id')->all(), 'cultivation_notes' => $farmer->cultivation_notes ?: 'Illustrative demo farmer growing seasonal vegetables and rice. Records are synthetic showcase scenarios.']);
                 }
                 $handoffs = app(BatchHandoffService::class);
                 foreach ([
@@ -99,7 +99,7 @@ class ShowcaseScenarioSeeder extends Seeder
                         }
                     }
                 }
-                FarmerEnrollment::firstOrCreate(['tracking_code' => '00000000-0000-4000-8000-000000000001'], ['name' => 'Illustrative Demo Enrollment', 'phone' => '01700000000', 'district_id' => $bogura->id, 'grown_crop_ids' => Crop::where('is_active', true)->take(3)->pluck('id')->all(), 'cultivation_notes' => 'Synthetic enrollment for the administrator walkthrough. No real identity or farm.', 'status' => 'pending']);
+                FarmerEnrollment::firstOrCreate(['tracking_code' => '00000000-0000-4000-8000-000000000001'], ['name' => 'Illustrative Demo Enrollment', 'phone' => '01700000000', 'district_id' => $bogura->id, 'grown_crop_ids' => Crop::where('is_active', true)->take(3)->pluck('id')->all(), 'cultivation_notes' => 'Synthetic enrollment for the administrator walkthrough. No real identity or farm.', 'consented_at' => now(), 'status' => 'pending']);
                 foreach (['consumer' => 'pending', 'wholesale' => 'approved', 'retail' => 'rejected'] as $role => $status) {
                     FarmerRating::firstOrCreate(['farmer_id' => $farmer->id, 'reviewer_id' => $roles[$role]->id], ['score' => $role === 'retail' ? 2 : 4, 'comment' => 'Illustrative demo '.$status.' rating. Synthetic showcase feedback, not a real trading experience.', 'reviewer_group' => $role === 'consumer' ? 'public' : 'middlemen', 'status' => $status, 'moderated_by_user_id' => $status === 'pending' ? null : $roles['admin']->id, 'moderation_reason' => $status === 'pending' ? null : 'Illustrative seeded rating moderation outcome.']);
                 }

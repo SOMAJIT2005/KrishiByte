@@ -492,7 +492,7 @@
 
                         @if(auth()->user()->isVendor())
                             <li class="nav-item">
-                                <a class="nav-link {{ request()->routeIs('vendor.*') ? 'active' : '' }}" href="{{ route('vendor.dashboard') }}">
+                                <a class="nav-link {{ request()->routeIs('vendor.*', 'retail.*') ? 'active' : '' }}" href="{{ route(auth()->user()->isRetail() ? 'retail.prices' : 'vendor.dashboard') }}">
                                     <i class="bi bi-shop me-1"></i> Workspace
                                 </a>
                             </li>

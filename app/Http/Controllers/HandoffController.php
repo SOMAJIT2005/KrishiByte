@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\HandoffProposal;
 use App\Models\Transaction;
 use App\Services\BatchHandoffService;
+use App\Services\ReviewAccess;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 
@@ -32,7 +33,9 @@ class HandoffController extends Controller
     public function receipt(int $id)
     {
         $transaction = Transaction::with(['batch.crop', 'seller', 'buyer', 'district'])->findOrFail($id);
-        abort_unless(in_array(auth()->id(), [$transaction->seller_id, $transaction->buyer_id, $transaction->recorded_by_user_id], true) || auth()->user()->isAdmin(), 403);
+        if (! in_array(auth()->id(), [$transaction->seller_id, $transaction->buyer_id, $transaction->recorded_by_user_id], true)) {
+            ReviewAccess::authorize($transaction->district_id, $transaction->batch_id);
+        }
 
         return response()->view('vendor.receipt', compact('transaction'))->header('Cache-Control', 'private, no-store');
     }

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\BatchHandoffService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 class VendorController extends Controller
@@ -19,8 +20,11 @@ class VendorController extends Controller
 
     public function dashboard(Request $request)
     {
-        $request->validate(['buyer_search' => ['nullable', 'string', 'max:100']]);
+        $request->validate(['buyer_search' => ['nullable', 'string', 'max:100'], 'buyer_district_id' => ['nullable', 'integer', 'exists:districts,id']]);
         $user = Auth::user();
+        if ($user->isRetail()) {
+            return redirect()->route('retail.prices');
+        }
 
         // Batches currently in this vendor's custody
         $batchesInCustody = Batch::with(['crop', 'originDistrict', 'transactions' => fn ($q) => $q->where('is_voided', false), 'handoffProposals' => fn ($q) => $q->where('status', 'proposed')->where('expires_at', '>', now())])
@@ -34,7 +38,7 @@ class VendorController extends Controller
                 $q->where('seller_id', $user->id)->orWhere('buyer_id', $user->id);
             })
             ->latest('transaction_date')
-            ->paginate(15);
+            ->paginate(15)->withQueryString();
 
         // Potential buyers based on role
         $roles = match ($user->role) {
@@ -43,7 +47,14 @@ class VendorController extends Controller
             'retail' => ['consumer'],
             default => ['collector', 'wholesale', 'retail', 'consumer'],
         };
-        $eligibleBuyers = User::whereIn('role', $roles)->where('account_status', 'active')->where('id', '!=', $user->id)->when($request->filled('buyer_search'), fn ($q) => $q->where('name', 'like', '%'.$request->string('buyer_search').'%'))->orderBy('name')->limit(50)->get();
+        $request->validate(['buyer_role' => ['nullable', 'string', Rule::in($roles)]]);
+        $buyerRole = $request->input('buyer_role') ?: ($user->isCollector() ? 'wholesale' : ($user->role === 'wholesale' ? 'retail' : 'collector'));
+        $buyerDistrictId = $request->input('buyer_district_id');
+        $eligibleBuyers = User::with(['district', 'marketplace.district'])->where('role', $buyerRole)
+            ->when($buyerDistrictId, fn ($q) => $q->where('district_id', $buyerDistrictId), fn ($q) => $q->whereRaw('1 = 0'))
+            ->whereIn('role', $roles)->where('account_status', 'active')->where('trading_approved', true)->where('id', '!=', $user->id)
+            ->when($request->filled('buyer_search'), fn ($q) => $q->where(fn ($names) => $names->where('name', 'like', '%'.$request->string('buyer_search').'%')->orWhere('shop_name', 'like', '%'.$request->string('buyer_search').'%')))
+            ->orderBy('name')->limit(50)->get();
 
         $districts = District::orderBy('name')->get();
 
@@ -61,7 +72,7 @@ class VendorController extends Controller
             'flagged_alerts' => Transaction::where('seller_id', $user->id)->where('validation_status', 'flagged')->count(),
         ];
 
-        return view('vendor.dashboard', compact('user', 'batchesInCustody', 'transactions', 'eligibleBuyers', 'districts', 'stats', 'collectionBatches'));
+        return view('vendor.dashboard', compact('user', 'batchesInCustody', 'transactions', 'eligibleBuyers', 'districts', 'stats', 'collectionBatches', 'roles', 'buyerRole', 'buyerDistrictId'));
     }
 
     public function storeCollection(Request $request)
@@ -74,9 +85,11 @@ class VendorController extends Controller
 
     public function storeHandoff(Request $request, bool $collection = false)
     {
+        abort_if(Auth::user()->isRetail(), 403, 'Retail shops record selling prices on the retail prices page; customer handoffs are disabled.');
         $validated = $request->validate([
             'batch_id' => ['required', 'exists:batches,id'],
-            'buyer_id' => [Auth::user()->isRetail() ? 'nullable' : 'required', 'exists:users,id'],
+            'buyer_id' => [Auth::user()->isRetail() ? 'nullable' : 'required', 'integer', 'exists:users,id'],
+            'buyer_district_id' => [$collection ? 'nullable' : 'required', 'integer', 'exists:districts,id'],
             'request_key' => ['required', 'uuid'],
             'stage' => ['required', 'in:auto,farmer_to_collector,collector_to_wholesale,wholesale_to_retail,retail_sale'],
             'quantity' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
@@ -89,6 +102,9 @@ class VendorController extends Controller
         ]);
 
         try {
+            if (! $collection && User::findOrFail($validated['buyer_id'])->district_id !== (int) $validated['buyer_district_id']) {
+                return back()->withInput()->with('error', 'Choose a registered recipient in the selected destination district.');
+            }
             $sellerId = Auth::id();
             if ($collection) {
                 $batch = Batch::with('currentCustodian')->findOrFail($validated['batch_id']);

@@ -32,3 +32,15 @@ Intermediate custody transfers move the entire lot. Retail sales can consume par
 ## Verification and documentation
 
 59 automated tests / 395 assertions pass on both test databases. Live local browser checks cover agreement-backed collection, profiles/ratings, admin confirmation, retail sales and analytics; concurrent MySQL checks prove duplicate/oversell protections. See [testing](docs/TESTING.md), [architecture](docs/ARCHITECTURE.md), [security review and remaining deployment work](docs/SECURITY_REVIEW.md), [environment](docs/ENVIRONMENT.md), and the latest section of [work summary](WORK_SUMMARY.md).
+
+## 2026-10-13 review remediation and destination markets
+
+This section supersedes earlier descriptions of retailer customer sales and global reviewer access.
+
+- Retail shops accept incoming custody, then record asking prices in `/retail/prices`. Customer handoffs are disabled at the HTTP endpoint; public traces omit historical customer transfers. Quotes retain price/unit/time, shop, batch and marketplace without a customer, payment claim or stock deduction. Earlier partial/sold-out records are retained as historical data.
+- Public `/traceability` filters destination district, then marketplace. It shows approved shops and currently stocked goods, their origin districts, recorded quantities, latest shop prices and journey links. Origins are independent of destination markets.
+- Admin → Manage district marketplaces creates markets with district-scoped unique names and an audit record; submission requires recent password confirmation. Retail registration requires district, an active market in that district, shop name and trade license. New trader accounts require separate administrator trading approval; badges do not grant capability.
+- `showcase:populate` now also creates 39 explicitly illustrative markets across the 13 configured districts, 78 shops, 156 lots and 312 initial asking-price records. Each market has two shops and four cross-district journeys. Seed reruns preserve presentation actions and prices. These are synthetic names/records, not a registry of actual marketplaces or all 64 Bangladesh districts.
+- Core review fixes cover percentage precision, terminal flag lifecycle, accepted-transfer correction requests, idempotent account suspension, consent/withdrawal, assisted private farmer access, unit grouping, decimal quantity display and evidence budgets. See `docs/REVIEW_REMEDIATION_2026-10-13.md` for B01-B12, permissions and limitations.
+
+Latest verification: 81 tests / 585 assertions on `krishibyte_test`; live market, registration and retail-price checks; concurrent MySQL acceptance/legacy-stock checks; exact restore comparison on 28 tables. Screenshots and commands are recorded in `WORK_SUMMARY.md` and `docs/TESTING.md`.

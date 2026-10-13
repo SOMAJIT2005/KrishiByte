@@ -3,8 +3,10 @@
 @section('title', 'Vendor Custody Workspace — KrishiByte')
 
 @section('content')
-<form method="GET" class="d-flex gap-2 mb-3"><label for="buyer_search" class="visually-hidden">Search counterparties</label><input id="buyer_search" name="buyer_search" class="form-control" value="{{ request('buyer_search') }}" placeholder="Search recipient name (up to 50 matches)" maxlength="100"><button class="btn btn-outline-primary">Find recipient</button></form>
+@if(!$user->trading_approved && $user->isVendor())<div class="alert alert-info">Trading approval is pending. An administrator must approve your trading capability before purchases or handoff proposals can be recorded. Identity badges are reviewed separately.</div>@endif
+<form method="GET" class="card card-body mb-3"><div class="row g-3 align-items-end"><div class="col-md-3"><label for="buyer_district_id" class="form-label">1. Recipient district</label><select id="buyer_district_id" name="buyer_district_id" class="form-select" required><option value="">-- Select district first --</option>@foreach($districts as $district)<option value="{{ $district->id }}" @selected($buyerDistrictId == $district->id)>{{ $district->name }}</option>@endforeach</select></div><div class="col-md-3"><label for="buyer_role" class="form-label">2. Recipient role</label><select id="buyer_role" name="buyer_role" class="form-select">@foreach($roles as $role)<option value="{{ $role }}" @selected($buyerRole === $role)>{{ $role === 'retail' ? 'Retail shops' : ($role === 'wholesale' ? 'Wholesalers' : ucfirst($role).'s') }}</option>@endforeach</select></div><div class="col-md-4"><label for="buyer_search" class="form-label">Recipient or shop name</label><input id="buyer_search" name="buyer_search" class="form-control" value="{{ request('buyer_search') }}" placeholder="Search listed accounts or shops" maxlength="100"></div><div class="col-md-2"><button class="btn btn-outline-primary w-100">Find recipient</button></div></div><p class="small text-muted mt-2 mb-0">Choose a district, then a role to find its active, approved registered accounts. Up to 50 matches; narrow by name when needed.</p></form>
 <a href="{{ route('handoffs.index') }}" class="btn btn-outline-primary mb-3">Review handoff proposals</a>
+@if($buyerDistrictId)<p class="small {{ $eligibleBuyers->isEmpty() ? 'text-danger' : 'text-muted' }}">{{ $eligibleBuyers->count() }} matching {{ $buyerRole === 'retail' ? 'retail shops' : ($buyerRole === 'wholesale' ? 'wholesalers' : 'collectors') }} in {{ $districts->firstWhere('id',$buyerDistrictId)?->name }}. @if($eligibleBuyers->isEmpty())Try another district, role or name.@endif</p>@endif
 @if($user->isCollector())
 <div class="card card-body mb-4"><h2 class="h5">Collect from a farmer</h2><p>Enter the agreed quantity and price, upload the handwritten agreement, and collect the lot without a farmer login.</p><a href="{{ route('vendor.farm-purchase') }}" class="btn btn-primary align-self-start mb-3">Record farmer purchase</a>
 @forelse($collectionBatches as $lot)
@@ -31,7 +33,7 @@
         </div>
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <button type="button" class="btn btn-primary px-4 py-2" data-bs-toggle="modal" data-bs-target="#recordHandoffModal" style="border-radius: 0.5rem;">
+        <button type="button" class="btn btn-primary px-4 py-2" data-bs-toggle="modal" data-bs-target="#recordHandoffModal" style="border-radius: 0.5rem;" @disabled(!$buyerDistrictId || $eligibleBuyers->isEmpty() || ($user->isVendor() && !$user->trading_approved))>
             <i class="bi bi-arrow-left-right me-1"></i> {{ $user->isRetail() ? 'Record retail sale' : 'Propose custody handoff' }}
         </button>
     </div>
@@ -165,7 +167,7 @@
                                 </small>
                             </td>
                             <td class="text-end">
-                                <button type="button" class="btn btn-sm btn-primary" style="border-radius: 0.375rem;" data-id="{{ $batch->id }}" data-code="{{ $batch->batch_code }}" data-quantity="{{ $batch->available_quantity }}" data-unit="{{ $batch->unit }}" data-price="{{ $batch->acquisition_price }}" onclick="prepareHandoffModal(this.dataset.id, this.dataset.code, Number(this.dataset.quantity), this.dataset.unit, Number(this.dataset.price))">
+                                <button type="button" class="btn btn-sm btn-primary" style="border-radius: 0.375rem;" data-id="{{ $batch->id }}" data-code="{{ $batch->batch_code }}" data-quantity="{{ $batch->available_quantity }}" data-unit="{{ $batch->unit }}" data-price="{{ $batch->acquisition_price }}" onclick="prepareHandoffModal(this.dataset.id, this.dataset.code, Number(this.dataset.quantity), this.dataset.unit, Number(this.dataset.price))" @disabled(!$buyerDistrictId || $eligibleBuyers->isEmpty() || ($user->isVendor() && !$user->trading_approved))>
                                     <i class="bi bi-arrow-right-circle me-1"></i> Record Handoff
                                 </button>
                             </td>
@@ -288,7 +290,7 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                @if(!$tx->is_voided && $tx->recorded_by_user_id === auth()->id())
+                                @if(!$tx->is_voided && $tx->stage === 'retail_sale' && $tx->recorded_by_user_id === auth()->id())
                                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="openVoidModal({{ $tx->id }}, '{{ $tx->batch->batch_code }}')" style="border-radius: 0.375rem;">
                                         <i class="bi bi-x-circle me-1"></i> Void
                                     </button>
@@ -321,6 +323,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" action="{{ route(auth()->user()->isFarmer() ? 'farmer.handoff.store' : 'vendor.handoff.store') }}" id="handoffForm">
+                <input type="hidden" name="buyer_district_id" value="{{ $buyerDistrictId }}">
                 @csrf<input type="hidden" name="request_key" value="{{ \Illuminate\Support\Str::uuid() }}">
                 <div class="modal-header" style="background: var(--kb-primary); color: #fff;">
                     <h5 class="modal-title fw-bold">
@@ -380,9 +383,10 @@
                             <select name="buyer_id" id="buyer_id" class="form-select" {{ $user->isRetail() ? '' : 'required' }}>
                                 <option value="">{{ $user->isRetail() ? 'Anonymous retail customer' : '-- Choose Recipient --' }}</option>
                                 @foreach($eligibleBuyers as $eb)
-                                    <option value="{{ $eb->id }}">{{ $eb->name }} ({{ ucfirst($eb->role) }})</option>
+                                    <option value="{{ $eb->id }}">{{ $eb->shop_name ?: $eb->name }} ({{ ucfirst($eb->role) }}){{ $eb->marketplace ? ' · '.$eb->marketplace->name : '' }}{{ $eb->district ? ' · '.$eb->district->name : '' }}</option>
                                 @endforeach
                             </select>
+                            <small class="text-muted">{{ $buyerDistrictId ? 'Showing '.$eligibleBuyers->count().' matching recipients in '.$districts->firstWhere('id',$buyerDistrictId)?->name.'.' : 'Select a recipient district above first.' }} Change district, role or search above to find a listed buyer. The recipient must accept before custody moves.</small>
                         </div>
 
                         <div class="col-md-6">
@@ -394,7 +398,7 @@
                             <label for="modal_district_id" class="form-label">Transfer Market District <span class="text-danger">*</span></label>
                             <select name="district_id" id="modal_district_id" class="form-select" required>
                                 @foreach($districts as $d)
-                                    <option value="{{ $d->id }}" {{ (auth()->user()->district_id == $d->id) ? 'selected' : '' }}>
+                                    <option value="{{ $d->id }}" {{ (($buyerDistrictId ?: auth()->user()->district_id) == $d->id) ? 'selected' : '' }}>
                                         {{ $d->name }} ({{ $d->division }})
                                     </option>
                                 @endforeach

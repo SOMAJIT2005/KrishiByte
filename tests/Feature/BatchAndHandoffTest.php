@@ -9,6 +9,7 @@ use App\Models\MarkupRule;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BatchHandoffService;
+use App\Services\CorrectionService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -316,8 +317,9 @@ class BatchAndHandoffTest extends TestCase
         $batch->refresh();
         $this->assertEquals($this->collector->id, $batch->current_custodian_id);
 
-        // Now void transaction
-        $service->voidTransaction($tx->id, $this->collector->id, 'Clerical weight error');
+        // Custody is corrected only after the affected farmer accepts.
+        $correction = app(CorrectionService::class)->request($tx->id, $this->collector->id, (string) Str::uuid(), 'Clerical weight error');
+        app(CorrectionService::class)->decide($correction, $this->farmer->id, 'accepted', 'Farmer confirmed correction');
 
         $tx->refresh();
         $batch->refresh();

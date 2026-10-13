@@ -3,7 +3,7 @@
 @section('title', 'Market Monitoring Desk — KrishiByte')
 
 @section('content')
-<form method="GET" class="card card-body mb-4"><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label" for="chart-crop">Price progression by crop (BDT per {{ $selectedCrop?->unit }})</label><select class="form-select" id="chart-crop" name="crop_id">@foreach($crops as $crop)<option value="{{ $crop->id }}" @selected($crop->id === $selectedCrop?->id)>{{ $crop->name }}</option>@endforeach</select></div><div class="col-md-4"><button class="btn btn-primary">Apply crop filter</button></div></div></form>
+<form method="GET" class="card card-body mb-4"><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label" for="chart-crop">Compare custody stages by crop (BDT per {{ $selectedCrop?->unit }})</label><select class="form-select" id="chart-crop" name="crop_id">@foreach($crops as $crop)<option value="{{ $crop->id }}" @selected($crop->id === $selectedCrop?->id)>{{ $crop->name }}</option>@endforeach</select></div><div class="col-md-4"><button class="btn btn-primary">Apply crop filter</button></div></div></form>
 <div class="row g-3 mb-4 align-items-center">
     <div class="col-md-8">
         <div>
@@ -86,15 +86,32 @@
 <div class="row g-4 mb-4">
     <div class="col-lg-8">
         <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-bar-chart-line fs-5" style="color: var(--kb-primary-light);"></i>
-                    <span class="section-title mb-0">Stage-Wise Price Progression</span>
+                    <span class="section-title mb-0">Prices &amp; markup by custody stage</span>
                 </div>
-                <span class="small text-muted">Empirical system data</span>
+                <span class="small text-muted">{{ $stageAverages->sum('count') }} recorded transfers</span>
             </div>
             <div class="card-body">
-                <canvas id="stagePriceChart" height="150"></canvas>
+                <p class="fw-semibold mb-1">{{ $selectedCrop?->name }} · {{ $selectedCrop?->unit }}</p>
+                <p id="stage-chart-description" class="small text-muted">Each bar is an average across different batches, not one batch's price journey. All recorded dates in your assigned districts; includes demo and legacy records. Customer sales are excluded.</p>
+                @if($stageAverages->isNotEmpty())
+                <div class="d-flex gap-2 flex-wrap mb-3" role="group" aria-label="Chart metric">
+                    <button type="button" id="stage-price-mode" class="btn btn-primary btn-sm" aria-pressed="true">Price (BDT / {{ $selectedCrop?->unit }})</button>
+                    <button type="button" id="stage-markup-mode" class="btn btn-outline-primary btn-sm" aria-pressed="false">Markup (%)</button>
+                </div>
+                <p id="stage-chart-metric" class="small fw-semibold mb-2" aria-live="polite">Average recorded price (BDT / {{ $selectedCrop?->unit }})</p>
+                <p id="stage-chart-missing" class="alert alert-light border small" hidden>No comparable markup values are recorded for these transfers. See the sample counts below.</p>
+                <div id="stage-chart-area" style="position:relative;height:{{ max(250, $stageAverages->count() * 52 + 65) }}px"><canvas id="stagePriceChart" role="img" aria-label="Average recorded price by custody stage" aria-describedby="stage-chart-description">Exact values are available in the table below.</canvas></div>
+                <details class="mt-3"><summary class="small fw-semibold">Exact values, ranges &amp; sample counts</summary>
+                    <div class="table-responsive mt-2" tabindex="0" aria-label="Custody stage summary"><table class="table table-sm small"><thead><tr><th>Stage</th><th>Average price</th><th>Price range</th><th>Average markup</th><th>Transfers</th></tr></thead><tbody>
+                    @foreach($stageAverages as $index => $row)<tr><td>{{ $chartLabels[$index] }}</td><td>BDT {{ number_format($row->avg_price,2) }} / {{ $selectedCrop?->unit }}</td><td>{{ number_format($row->min_price,2) }}–{{ number_format($row->max_price,2) }}</td><td>{{ $row->avg_markup === null ? 'Not available' : number_format($row->avg_markup,2).'%' }}<small class="d-block text-muted">{{ $row->markup_count }} comparable records</small></td><td>{{ $row->count }}</td></tr>@endforeach
+                    </tbody></table></div>
+                </details>
+                @else
+                <div class="empty-state py-4">No comparable custody transfers for this crop and unit in your assigned districts.</div>
+                @endif
             </div>
         </div>
     </div>
@@ -408,72 +425,76 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const ctx = document.getElementById('stagePriceChart');
-        if (ctx && typeof Chart !== 'undefined') {
-            new Chart(ctx, {
+        const canvas = document.getElementById('stagePriceChart');
+        if (canvas && typeof Chart !== 'undefined') {
+            const labels = @json($chartLabels);
+            const prices = @json($chartPrices);
+            const markups = @json($chartMarkups);
+            const samples = @json($stageAverages->pluck('count')->all());
+            const markupSamples = @json($stageAverages->pluck('markup_count')->all());
+            const minima = @json($stageAverages->pluck('min_price')->all());
+            const maxima = @json($stageAverages->pluck('max_price')->all());
+            const unit = @json($selectedCrop?->unit ?? 'unit');
+            const number = new Intl.NumberFormat('en-BD', {maximumFractionDigits: 2});
+            let markupMode = false;
+            const chart = new Chart(canvas, {
                 type: 'bar',
-                data: {
-                    labels: @json($chartLabels),
-                    datasets: [
-                        {
-                            label: @json('Average price (BDT/'.($selectedCrop?->unit ?? 'unit').')'),
-                            data: @json($chartPrices),
-                            backgroundColor: 'rgba(25, 135, 84, 0.8)',
-                            borderColor: 'rgb(25, 135, 84)',
-                            borderWidth: 2,
-                            borderRadius: 4,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Average Markup (%)',
-                            data: @json($chartMarkups),
-                            backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                            borderColor: 'rgb(245, 158, 11)',
-                            borderWidth: 2,
-                            type: 'line',
-                            pointRadius: 5,
-                            pointBackgroundColor: 'rgb(245, 158, 11)',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2,
-                            tension: 0.3,
-                            yAxisID: 'y1'
-                        }
-                    ]
-                },
+                data: {labels, datasets: [{
+                    label: 'Average recorded price', data: prices,
+                    backgroundColor: '#198754', borderRadius: 5,
+                    maxBarThickness: 26
+                }]},
                 options: {
-                    responsive: true,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+                    interaction: {mode: 'nearest', intersect: true},
                     plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 20,
-                                font: { weight: '600', size: 12 }
-                            }
-                        }
+                        legend: {display: false},
+                        tooltip: {callbacks: {
+                            label: context => {
+                                const value = number.format(context.parsed.x);
+                                const count = (markupMode ? markupSamples : samples)[context.dataIndex];
+                                return (markupMode ? value + '%' : 'BDT ' + value + ' / ' + unit) + ' · ' + count + ' records';
+                            },
+                            afterLabel: context => markupMode
+                                ? 'Compared with each transfer\'s acquisition price.'
+                                : 'Price range: BDT ' + number.format(minima[context.dataIndex]) + '–' + number.format(maxima[context.dataIndex]) + ' / ' + unit
+                        }}
                     },
                     scales: {
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            grid: { color: 'rgba(0,0,0,0.05)' },
-                            title: { display: true, text: 'BDT / kg', font: { weight: '600' } }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            grid: { drawOnChartArea: false },
-                            title: { display: true, text: 'Markup %', font: { weight: '600' } }
-                        }
+                        x: {beginAtZero: true, grid: {color: 'rgba(0,0,0,0.06)'},
+                            title: {display: true, text: 'Average price (BDT / ' + unit + ')'},
+                            ticks: {callback: value => number.format(value)}},
+                        y: {grid: {display: false}, ticks: {autoSkip: false, font: {size: 11}}}
                     }
                 }
             });
+            const priceButton = document.getElementById('stage-price-mode');
+            const markupButton = document.getElementById('stage-markup-mode');
+            function selectMetric(markup) {
+                markupMode = markup;
+                chart.data.datasets[0].data = markup ? markups : prices;
+                chart.data.datasets[0].label = markup ? 'Average markup' : 'Average recorded price';
+                chart.data.datasets[0].backgroundColor = markup
+                    ? markups.map(value => value < 0 ? '#2563eb' : '#f59e0b') : '#198754';
+                chart.options.scales.x.title.text = markup ? 'Average markup (%)' : 'Average price (BDT / ' + unit + ')';
+                for (const [button, active] of [[priceButton, !markup], [markupButton, markup]]) {
+                    button.setAttribute('aria-pressed', String(active));
+                    button.classList.toggle('btn-primary', active);
+                    button.classList.toggle('btn-outline-primary', !active);
+                }
+                const description = markup ? 'Average markup (%); price decreases are blue.' : 'Average recorded price (BDT / ' + unit + ')';
+                document.getElementById('stage-chart-metric').textContent = description;
+                canvas.setAttribute('aria-label', description + ' by custody stage');
+                const missing = markup && markups.every(value => value === null);
+                document.getElementById('stage-chart-missing').hidden = !missing;
+                document.getElementById('stage-chart-area').hidden = missing;
+                if (!missing) {
+                    chart.resize();
+                    chart.update();
+                }
+            }
+            priceButton.addEventListener('click', () => selectMetric(false));
+            markupButton.addEventListener('click', () => selectMetric(true));
         }
     });
 

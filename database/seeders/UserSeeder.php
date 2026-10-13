@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\District;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
@@ -85,7 +86,12 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($users as $u) {
-            User::firstOrCreate(['email' => $u['email']], $u);
+            $demo = User::firstOrCreate(['email' => $u['email']], $u + ['trading_approved' => in_array($u['role'], ['collector', 'wholesale', 'retail'], true), 'farmer_profile_public' => $u['role'] === 'farmer', 'publication_consented_at' => $u['role'] === 'farmer' ? now() : null, 'consent_method' => $u['role'] === 'farmer' ? 'Explicit synthetic demo identity' : null]);
+            if ($demo->wasRecentlyCreated && in_array($demo->role, ['admin', 'authority'], true)) {
+                foreach (District::pluck('id') as $districtId) {
+                    DB::table('review_assignments')->insert(['user_id' => $demo->id, 'district_id' => $districtId, 'assigned_by' => User::where('email', 'admin@krishibyte.local')->firstOrFail()->id, 'reason' => 'Explicit national synthetic showcase reviewer; narrow for institutional rollout', 'created_at' => now(), 'updated_at' => now()]);
+                }
+            }
         }
     }
 }

@@ -148,7 +148,7 @@ class Batch extends Model
      */
     public function getTotalHandoffsAttribute(): int
     {
-        return $this->transactions()->where('is_voided', false)->count();
+        return $this->transactions()->where('is_voided', false)->where('stage', '!=', 'retail_sale')->count();
     }
 
     /**

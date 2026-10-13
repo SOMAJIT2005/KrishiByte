@@ -3,9 +3,12 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AuthorityController;
+use App\Http\Controllers\CorrectionController;
+use App\Http\Controllers\FarmerAccessController;
 use App\Http\Controllers\FarmerController;
 use App\Http\Controllers\FarmerProfileController;
 use App\Http\Controllers\HandoffController;
+use App\Http\Controllers\MarketController;
 use App\Http\Controllers\PublicController;
 use App\Http\Controllers\VendorController;
 use App\Models\Batch;
@@ -31,7 +34,7 @@ Route::middleware('role:collector')->group(function () {
     Route::get('/vendor/farmer-purchase', [FarmerProfileController::class, 'purchaseForm'])->name('vendor.farm-purchase');
     Route::post('/vendor/farmer-purchase', [FarmerProfileController::class, 'purchase'])->middleware('throttle:purchases')->name('vendor.farm-purchase.store');
 });
-Route::get('/farmer-agreements/{id}', [FarmerProfileController::class, 'agreement'])->middleware('role:admin,authority,farmer,collector')->name('farmers.agreement');
+Route::get('/farmer-agreements/{id}', [FarmerProfileController::class, 'agreement'])->name('farmers.agreement');
 Route::middleware('role:admin')->prefix('admin')->group(function () {
     Route::get('/farmer-review', [FarmerProfileController::class, 'reviewQueue'])->name('admin.farmer-review');
     Route::post('/farmer-enrollments/{id}', [FarmerProfileController::class, 'reviewEnrollment'])->middleware('password.confirm')->name('admin.farmer-enrollment.review');
@@ -109,8 +112,12 @@ Route::middleware(['role:authority,admin'])->prefix('authority')->name('authorit
 */
 Route::middleware(['role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+    Route::get('/marketplaces', [MarketController::class, 'admin'])->name('marketplaces');
+    Route::post('/marketplaces', [MarketController::class, 'store'])->middleware('password.confirm')->name('marketplaces.store');
     Route::post('/users/{id}/verify', [AdminController::class, 'verifyUser'])->middleware('password.confirm')->name('users.verify');
     Route::post('/users/{id}/toggle', [AdminController::class, 'toggleUserStatus'])->middleware('password.confirm')->name('users.toggle');
+    Route::post('/users/{id}/trading', [AdminController::class, 'tradingApproval'])->middleware('password.confirm')->name('users.trading');
+    Route::post('/review-assignments', [AdminController::class, 'assignReviewer'])->middleware('password.confirm')->name('review.assign');
     Route::post('/rules', [AdminController::class, 'storeRule'])->middleware('password.confirm')->name('rules.store');
     Route::post('/rules/{id}/toggle', [AdminController::class, 'toggleRule'])->middleware('password.confirm')->name('rules.toggle');
     Route::get('/audit-logs', [AdminController::class, 'auditLogs'])->name('audit-logs');
@@ -124,7 +131,21 @@ Route::middleware('role:farmer,collector,wholesale,retail')->group(function () {
     Route::get('/handoffs', [HandoffController::class, 'index'])->name('handoffs.index');
     Route::post('/handoffs/{id}/decision', [HandoffController::class, 'decide'])->middleware('throttle:decisions')->name('handoffs.decide');
 });
-Route::get('/transactions/{id}/receipt', [HandoffController::class, 'receipt'])->middleware('role:admin,farmer,collector,wholesale,retail,consumer')->name('transactions.receipt');
+Route::get('/farmer-access', [FarmerAccessController::class, 'index'])->name('farmers.access');
+Route::get('/retail/prices', [MarketController::class, 'prices'])->middleware('role:retail')->name('retail.prices');
+Route::post('/retail/prices', [MarketController::class, 'recordPrice'])->middleware(['role:retail', 'throttle:purchases'])->name('retail.prices.store');
+Route::post('/farmer-access/request', [FarmerAccessController::class, 'requestAccess'])->middleware('throttle:enrollment')->name('farmers.access.request');
+Route::post('/farmer-access/redeem', [FarmerAccessController::class, 'redeem'])->middleware('throttle:confirmation')->name('farmers.access.redeem');
+Route::post('/farmer-access/withdraw', [FarmerAccessController::class, 'withdraw'])->middleware('throttle:enrollment')->name('farmers.withdraw');
+Route::post('/farmer-access/transactions/{id}/correction', [FarmerAccessController::class, 'correction'])->middleware('throttle:decisions')->name('farmers.access.correction');
+Route::post('/admin/farmer-access/{id}/review', [FarmerAccessController::class, 'review'])->middleware(['role:admin', 'password.confirm'])->name('admin.farmer-access.review');
+Route::get('/transactions/{id}/receipt', [HandoffController::class, 'receipt'])->middleware('role:admin,authority,farmer,collector,wholesale,retail,consumer')->name('transactions.receipt');
+
+Route::middleware('role:farmer,collector,wholesale,retail')->group(function () {
+    Route::get('/corrections', [CorrectionController::class, 'index'])->name('corrections.index');
+    Route::post('/transactions/{id}/correction', [CorrectionController::class, 'store'])->middleware('throttle:decisions')->name('corrections.store');
+    Route::post('/corrections/{id}/decision', [CorrectionController::class, 'decide'])->middleware('throttle:decisions')->name('corrections.decide');
+});
 
 Route::middleware('role:admin,authority,farmer,collector,wholesale,retail,consumer')->group(function () {
     Route::get('/confirm-password', fn () => view('auth.confirm-password'))->name('password.confirm');

@@ -20,7 +20,7 @@ class AccountAndSecurityHeaders
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
-        if ($request->user()) {
+        if ($request->user() || $request->session()->has('farmer_access_id')) {
             $response->headers->set('Cache-Control', 'private, no-store');
         }
 

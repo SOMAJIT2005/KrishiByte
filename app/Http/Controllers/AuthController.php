@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\District;
+use App\Models\Marketplace;
 use App\Models\User;
 use App\Services\AuditLoggerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -96,7 +98,9 @@ class AuthController extends Controller
 
         $districts = District::orderBy('name')->get();
 
-        return view('auth.register', compact('districts'));
+        $markets = Marketplace::where('is_active', true)->with('district')->orderBy('name')->get();
+
+        return view('auth.register', compact('districts', 'markets'));
     }
 
     public function register(Request $request)
@@ -106,9 +110,13 @@ class AuthController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'phone' => ['nullable', 'string', 'max:20'],
             'role' => ['required', 'in:consumer,farmer,collector,wholesale,retail'], // Strictly prohibit authority/admin
-            'district_id' => ['nullable', 'exists:districts,id'],
-            'nid_or_trade_license' => ['nullable', 'string', 'max:100'],
+            'district_id' => ['required_if:role,collector,wholesale,retail', 'nullable', 'exists:districts,id'],
+            'marketplace_id' => ['exclude_unless:role,retail', 'required', Rule::exists('marketplaces', 'id')->where('district_id', $request->input('district_id'))->where('is_active', true)],
+            'shop_name' => ['exclude_unless:role,retail', 'required', 'string', 'max:150'],
+            'nid_or_trade_license' => ['required_if:role,collector,retail', 'nullable', 'string', 'max:100'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ], [
+            'nid_or_trade_license.required_if' => 'A trade license number is required for collectors and retail shops.',
         ]);
 
         $user = User::create([
@@ -118,6 +126,8 @@ class AuthController extends Controller
             'role' => $validated['role'],
             'account_status' => 'active',
             'district_id' => $validated['district_id'] ?? null,
+            'marketplace_id' => $validated['marketplace_id'] ?? null,
+            'shop_name' => $validated['shop_name'] ?? null,
             'nid_or_trade_license' => $validated['nid_or_trade_license'] ?? null,
             'password' => Hash::make($validated['password']),
         ]);
@@ -161,7 +171,8 @@ class AuthController extends Controller
             'admin' => redirect()->route('admin.dashboard'),
             'authority' => redirect()->route('authority.dashboard'),
             'farmer' => redirect()->route('farmers.show', $user->id),
-            'collector', 'wholesale', 'retail' => redirect()->route('vendor.dashboard'),
+            'collector', 'wholesale' => redirect()->route('vendor.dashboard'),
+            'retail' => redirect()->route('retail.prices'),
             default => redirect()->route('public.prices'),
         };
     }

@@ -14,7 +14,8 @@ return new class extends Migration
             $table->json('grown_crop_ids')->nullable();
             $table->text('cultivation_notes')->nullable();
         });
-        DB::table('users')->where('role', 'farmer')->update(['farmer_profile_public' => true]);
+        // Real legacy profiles stay private until consent; demo publication is explicit.
+        DB::table('users')->where('role', 'farmer')->where('email', 'farmer.rahim@krishibyte.local')->update(['farmer_profile_public' => true]);
         Schema::create('farmer_enrollments', function (Blueprint $table) {
             $table->id();
             $table->uuid('tracking_code')->unique();

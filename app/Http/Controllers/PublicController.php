@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Batch;
 use App\Models\Crop;
 use App\Models\District;
+use App\Models\Marketplace;
 use App\Models\PriceObservation;
 use App\Models\PriceReport;
+use App\Models\RetailPrice;
+use App\Models\User;
 use App\Services\EvidenceService;
 use App\Services\PriceReferenceService;
 use App\Services\PublicAnalyticsService;
+use App\Services\ReviewAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -90,19 +94,34 @@ class PublicController extends Controller
 
     public function traceability(Request $request)
     {
+        $filters = $request->validate(['district_id' => ['nullable', 'exists:districts,id'], 'marketplace_id' => ['nullable', 'exists:marketplaces,id'], 'code' => ['nullable', 'string', 'max:100']]);
         $batchCode = trim($request->input('code', ''));
 
         if (! empty($batchCode)) {
             return redirect()->route('public.traceability.show', ['batch_code' => $batchCode]);
         }
 
-        $recentBatches = Batch::with(['crop', 'originDistrict'])
+        $districts = District::orderBy('name')->get();
+        $districtId = $filters['district_id'] ?? null;
+        $marketId = $filters['marketplace_id'] ?? null;
+        if ($marketId) {
+            $market = Marketplace::where('is_active', true)->findOrFail($marketId);
+            abort_unless($districtId && (int) $districtId === $market->district_id, 422, 'Select the district that contains this marketplace.');
+        }
+        $markets = Marketplace::where('is_active', true)->when($districtId, fn ($q) => $q->where('district_id', $districtId))->with('district')->orderBy('name')->get();
+        $shops = User::where('role', 'retail')->where('account_status', 'active')->where('trading_approved', true)
+            ->whereHas('marketplace', fn ($q) => $q->where('is_active', true))
+            ->when($districtId, fn ($q) => $q->where('district_id', $districtId))
+            ->when($marketId, fn ($q) => $q->where('marketplace_id', $marketId))
+            ->with('marketplace.district')->orderBy('shop_name')->get();
+        $recentBatches = Batch::with(['crop', 'originDistrict', 'currentCustodian.marketplace'])
             ->where('status', '!=', 'voided')->where('verification_status', '!=', 'rejected')
+            ->when($districtId || $marketId, fn ($q) => $q->where('status', 'active')->whereIn('current_custodian_id', $shops->pluck('id')))
             ->latest()
-            ->take(10)
-            ->get();
+            ->paginate(20)->withQueryString();
+        $retailPrices = RetailPrice::whereIn('batch_id', $recentBatches->pluck('id'))->whereIn('retailer_id', $shops->pluck('id'))->latest('id')->get()->unique('batch_id')->keyBy('batch_id');
 
-        return view('public.traceability-search', compact('recentBatches'));
+        return view('public.traceability-search', compact('recentBatches', 'districts', 'districtId', 'marketId', 'markets', 'shops', 'retailPrices'));
     }
 
     public function traceabilityShow(string $batch_code)
@@ -114,7 +133,8 @@ class PublicController extends Controller
             'currentCustodian',
             'transactions' => function ($q) {
                 $q->where('is_voided', false)
-                    ->with(['seller', 'buyer', 'district'])
+                    ->where('stage', '!=', 'retail_sale')
+                    ->with(['seller', 'buyer', 'district', 'anomalyFlags'])
                     ->orderBy('sequence_no', 'asc');
             },
         ])->where('status', '!=', 'voided')->where('verification_status', '!=', 'rejected')->where('batch_code', $batch_code)->firstOrFail();
@@ -138,7 +158,9 @@ class PublicController extends Controller
                 'price' => $point['price'],
             ])->values()->all();
 
-        return view('public.traceability-show', compact('batch', 'mapPoints'));
+        $retailPrice = RetailPrice::with('marketplace.district')->where('batch_id', $batch->id)->where('retailer_id', $batch->current_custodian_id)->latest('id')->first();
+
+        return view('public.traceability-show', compact('batch', 'mapPoints', 'retailPrice'));
     }
 
     public function reportForm()
@@ -251,7 +273,9 @@ class PublicController extends Controller
     public function evidence(int $id)
     {
         $report = PriceReport::findOrFail($id);
-        abort_unless(auth()->user()->isAuthority() || $report->reporter_user_id === auth()->id(), 403);
+        if ($report->reporter_user_id !== auth()->id()) {
+            ReviewAccess::authorize($report->district_id, $report->batch_id, $report->reporter_user_id);
+        }
         abort_unless($report->evidence_path && Storage::disk('local')->exists($report->evidence_path), 404);
 
         return Storage::disk('local')->response($report->evidence_path, null, ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
