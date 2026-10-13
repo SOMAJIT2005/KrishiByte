@@ -53,6 +53,8 @@
     </div>
 </div>
 
+<form method="GET" class="card card-body mb-3"><input type="hidden" name="crop_id" value="{{ $selectedCropId }}"><input type="hidden" name="district_id" value="{{ $selectedDistrictId }}"><input type="hidden" name="date" value="{{ $selectedDate }}"><label for="source" class="form-label">Observation source</label><select id="source" name="source" class="form-select mb-2">@foreach(['survey'=>'Reviewed market surveys','reports'=>'Reviewed citizen reports (complaint sample)','demo'=>'Illustrative demo samples'] as $key=>$label)<option value="{{ $key }}" @selected($selectedSource === $key)>{{ $label }}</option>@endforeach</select><button class="btn btn-outline-primary">Apply source</button></form>
+<div class="alert alert-info">Daily window: {{ $selectedDate }} (Bangladesh calendar date), retail observations only. {{ $referenceStats['sample_count'] }} samples from {{ $referenceStats['market_count'] }} markets; {{ $referenceStats['source_count'] }} recorded contributors (not proof of independence). Last observed date: {{ $referenceStats['last_observed_date'] ?? 'None' }}. @if($selectedSource === 'demo')<strong>Illustrative demo data, not market evidence.</strong>@endif Indicative prices are not official ceilings; sample size does not establish reliability. No historical fallback is applied.</div>
 {{-- Reference Price + Methodology --}}
 <div class="row g-4 mb-4">
     <div class="col-lg-8">
@@ -65,22 +67,22 @@
                             @if($selectedDistrict) &bull; {{ $selectedDistrict->name }} @endif
                         </span>
                         <h3 class="fw-bold mb-1" style="color: var(--kb-text);">Indicative Reference Price</h3>
-                        <small class="text-muted">Updated on {{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}</small>
+                        <small class="text-muted">Selected day {{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}</small>
                     </div>
                     <div class="text-end">
-                        @if($referenceStats['confidence'] === 'high')
+                        @if($referenceStats['sample_sufficiency'] === 'larger_sample')
                             <span class="badge bg-success-subtle text-success border border-success px-3 py-2 d-inline-flex align-items-center">
-                                <i class="bi bi-shield-check me-1"></i> High Confidence
+                                <i class="bi bi-shield-check me-1"></i> Larger sample
                                 <span class="small ms-1 d-block" style="font-weight: 400;">Trimmed Mean</span>
                             </span>
-                        @elseif($referenceStats['confidence'] === 'medium')
+                        @elseif($referenceStats['sample_sufficiency'] === 'minimum_met')
                             <span class="badge bg-info-subtle text-info-emphasis border border-info px-3 py-2 d-inline-flex align-items-center">
-                                <i class="bi bi-check-circle me-1"></i> Medium Confidence
+                                <i class="bi bi-check-circle me-1"></i> Minimum sample met
                                 <span class="small ms-1 d-block" style="font-weight: 400;">Median</span>
                             </span>
-                        @elseif($referenceStats['confidence'] === 'low')
+                        @elseif($referenceStats['sample_sufficiency'] === 'low')
                             <span class="badge bg-warning-subtle text-warning-emphasis border border-warning px-3 py-2 d-inline-flex align-items-center">
-                                <i class="bi bi-exclamation-triangle me-1"></i> Low Confidence
+                                <i class="bi bi-exclamation-triangle me-1"></i> Insufficient samples
                                 <span class="small ms-1 d-block" style="font-weight: 400;">Insufficient Data</span>
                             </span>
                         @else
@@ -108,7 +110,7 @@
                                 <strong>Method:</strong> <code>{{ $referenceStats['method'] }}</code>
                             </div>
                         </div>
-                        @if($referenceStats['confidence'] === 'low')
+                        @if($referenceStats['sample_sufficiency'] === 'low')
                             <div class="mt-2 p-2 rounded bg-warning-subtle border text-warning-emphasis small mb-0">
                                 <i class="bi bi-exclamation-circle-fill me-1"></i>
                                 <strong>Note:</strong> Fewer than 3 verified observations. This is an untrimmed average — treat as preliminary.
@@ -149,7 +151,7 @@
                         </ul>
                     </div>
                     <p class="mb-0">
-                        KrishiByte never invents an official government price. All indicative numbers are empirical aggregates derived solely from verified field surveys.
+                        Sources are shown separately: reviewed market surveys, reviewed citizen concerns, or illustrative demo samples. Complaint samples may be biased; no result is an official price ceiling.
                     </p>
                 </div>
             </div>
@@ -208,7 +210,7 @@
                                 </span>
                             </td>
                             <td class="small text-muted" style="max-width: 120px;">
-                                {{ ucwords(str_replace('_', ' ', $obs->source)) }}
+                                {{ $obs->is_demo ? 'Illustrative demo' : ucwords(str_replace('_', ' ', $obs->source)) }}
                             </td>
                         </tr>
                     @empty

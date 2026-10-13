@@ -11,7 +11,7 @@ class AnomalyFlag extends Model
     use HasFactory;
 
     protected $fillable = [
-        'batch_id',
+        'batch_id', 'rule_snapshot',
         'transaction_id',
         'user_id',
         'rule_id',
@@ -25,6 +25,7 @@ class AnomalyFlag extends Model
     ];
 
     protected $casts = [
+        'rule_snapshot' => 'array',
         'measured_value' => 'decimal:2',
         'threshold_value' => 'decimal:2',
     ];

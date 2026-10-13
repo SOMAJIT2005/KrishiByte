@@ -40,12 +40,12 @@
                             <label for="role" class="form-label">Account Role <span class="text-danger">*</span></label>
                             <select name="role" id="role" class="form-select @error('role') is-invalid @enderror" required>
                                 <option value="consumer" {{ old('role') == 'consumer' ? 'selected' : '' }}>Citizen / Consumer</option>
-                                <option value="farmer" {{ old('role') == 'farmer' ? 'selected' : '' }}>Farmer / Crop Producer</option>
+                                <option value="farmer" {{ old('role') == 'farmer' ? 'selected' : '' }}>Farmer (optional login account)</option>
                                 <option value="collector" {{ old('role') == 'collector' ? 'selected' : '' }}>Faria / Local Collector</option>
                                 <option value="wholesale" {{ old('role') == 'wholesale' ? 'selected' : '' }}>Wholesale Aratdar</option>
                                 <option value="retail" {{ old('role') == 'retail' ? 'selected' : '' }}>Retail Vendor</option>
                             </select>
-                            <div class="form-text small">Authority & Admin roles require official clearance.</div>
+                            <div class="form-text small">Farmers can <a href="{{ route('farmers.enroll') }}">apply for enrollment without a login</a>. Reviewer and admin roles are assigned by project administrators.</div>
                             @error('role') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-md-6">

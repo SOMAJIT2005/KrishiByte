@@ -11,7 +11,7 @@ class PriceObservation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'crop_id', 'price_report_id',
+        'crop_id', 'price_report_id', 'is_demo',
         'district_id',
         'market_name',
         'unit',
@@ -27,6 +27,7 @@ class PriceObservation extends Model
     protected $casts = [
         'observed_retail_price' => 'decimal:2',
         'observation_date' => 'date',
+        'is_demo' => 'boolean',
     ];
 
     public function crop(): BelongsTo

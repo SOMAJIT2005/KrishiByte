@@ -461,6 +461,8 @@
                             <i class="bi bi-graph-up me-1"></i> Prices
                         </a>
                     </li>
+                    <li class="nav-item"><a class="nav-link {{ request()->routeIs('public.analytics') ? 'active' : '' }}" href="{{ route('public.analytics') }}"><i class="bi bi-bar-chart me-1"></i> Analytics</a></li>
+                    <li class="nav-item"><a class="nav-link {{ request()->routeIs('farmers.*') ? 'active' : '' }}" href="{{ route('farmers.index') }}">Farmers</a></li>
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('public.traceability*') ? 'active' : '' }}" href="{{ route('public.traceability') }}">
                             <i class="bi bi-route me-1"></i> Traceability
@@ -482,8 +484,8 @@
                     @auth
                         @if(auth()->user()->isFarmer())
                             <li class="nav-item">
-                                <a class="nav-link {{ request()->routeIs('farmer.*') ? 'active' : '' }}" href="{{ route('farmer.dashboard') }}">
-                                    <i class="bi bi-tractor me-1"></i> Workspace
+                                <a class="nav-link" href="{{ route('farmers.show',auth()->id()) }}">
+                                    <i class="bi bi-tractor me-1"></i> My profile
                                 </a>
                             </li>
                         @endif
@@ -603,7 +605,7 @@
                         Transparent agricultural supply chain tracking and fair-margin intelligence for Bangladesh. Connecting growers, aggregators, arats, and retailers with auditable batch journeys.
                     </p>
                     <div class="d-flex flex-wrap gap-2 mb-2">
-                        <span class="badge bg-secondary border-0">Transparent provenance</span>
+                        <span class="badge bg-secondary border-0">@if(app()->environment('local'))<a href="{{ route('demo.showcase') }}">Local showcase</a>@endif Transparent provenance</span>
                         <span class="badge bg-dark border border-secondary text-warning">Illustrative demo data</span>
                     </div>
                 </div>
@@ -619,7 +621,7 @@
                 <div class="col-md-4">
                     <h6 class="text-white mb-2">Important Disclaimers</h6>
                     <p class="small text-secondary mb-0">
-                        Indicative reference prices are calculated using trimmed means from verified field surveys. This platform is an illustrative transparency tool; anomaly flags indicate statistical deviation requiring review, not definitive proof of wrongdoing.
+                        Daily indicative references use comparable reviewed observations: median for 3–4 samples, trimmed mean for 5 or more. Sources and demo samples are shown separately. This platform is an illustrative transparency tool; anomaly flags indicate statistical deviation requiring review, not definitive proof of wrongdoing.
                     </p>
                 </div>
             </div>

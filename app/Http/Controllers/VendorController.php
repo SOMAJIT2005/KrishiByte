@@ -17,12 +17,13 @@ class VendorController extends Controller
         protected BatchHandoffService $handoffService
     ) {}
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
+        $request->validate(['buyer_search' => ['nullable', 'string', 'max:100']]);
         $user = Auth::user();
 
         // Batches currently in this vendor's custody
-        $batchesInCustody = Batch::with(['crop', 'originDistrict', 'transactions' => fn ($q) => $q->where('is_voided', false)])
+        $batchesInCustody = Batch::with(['crop', 'originDistrict', 'transactions' => fn ($q) => $q->where('is_voided', false), 'handoffProposals' => fn ($q) => $q->where('status', 'proposed')->where('expires_at', '>', now())])
             ->where('current_custodian_id', $user->id)
             ->where('status', 'active')
             ->get();
@@ -42,7 +43,7 @@ class VendorController extends Controller
             'retail' => ['consumer'],
             default => ['collector', 'wholesale', 'retail', 'consumer'],
         };
-        $eligibleBuyers = User::whereIn('role', $roles)->where('account_status', 'active')->where('id', '!=', $user->id)->orderBy('name')->get();
+        $eligibleBuyers = User::whereIn('role', $roles)->where('account_status', 'active')->where('id', '!=', $user->id)->when($request->filled('buyer_search'), fn ($q) => $q->where('name', 'like', '%'.$request->string('buyer_search').'%'))->orderBy('name')->limit(50)->get();
 
         $districts = District::orderBy('name')->get();
 
@@ -75,7 +76,8 @@ class VendorController extends Controller
     {
         $validated = $request->validate([
             'batch_id' => ['required', 'exists:batches,id'],
-            'buyer_id' => ['required', 'exists:users,id'],
+            'buyer_id' => [Auth::user()->isRetail() ? 'nullable' : 'required', 'exists:users,id'],
+            'request_key' => ['required', 'uuid'],
             'stage' => ['required', 'in:auto,farmer_to_collector,collector_to_wholesale,wholesale_to_retail,retail_sale'],
             'quantity' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
             'price_per_unit' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:100000'],
@@ -93,10 +95,10 @@ class VendorController extends Controller
                 abort_unless($batch->currentCustodian->isFarmer(), 422, 'This batch is no longer at the farm gate.');
                 $sellerId = $batch->current_custodian_id;
             }
-            $tx = $this->handoffService->recordHandoff([
+            $terms = [
                 'batch_id' => (int) $validated['batch_id'],
                 'seller_id' => $sellerId,
-                'buyer_id' => (int) $validated['buyer_id'],
+                'buyer_id' => isset($validated['buyer_id']) ? (int) $validated['buyer_id'] : null,
                 'stage' => $validated['stage'],
                 'quantity' => (float) $validated['quantity'],
                 'price_per_unit' => (float) $validated['price_per_unit'],
@@ -106,14 +108,16 @@ class VendorController extends Controller
                 'longitude' => $validated['longitude'] ?? null,
                 'note' => $validated['note'] ?? null,
                 'recorded_by_user_id' => Auth::id(),
-            ]);
+            ];
+            if (Auth::user()->isRetail()) {
+                $tx = $this->handoffService->recordRetailSale($terms, $validated['request_key']);
+                $message = "Retail sale #{$tx->id} recorded. Payment is not verified.";
+            } else {
+                $proposal = $this->handoffService->propose($terms, $validated['request_key']);
+                $message = "Proposal #{$proposal->id} submitted. Custody stays unchanged until the counterparty accepts.";
+            }
 
-            $flagNotice = ($tx->validation_status === 'flagged')
-                ? ' Note: This transaction triggered an anomaly review flag due to markup rules.'
-                : '';
-
-            return redirect()->route(Auth::user()->isFarmer() ? 'farmer.handoff' : 'vendor.dashboard')
-                ->with('success', "Custody handoff completed successfully! Transaction #{$tx->id} recorded.{$flagNotice}");
+            return redirect()->route(Auth::user()->isRetail() ? 'vendor.dashboard' : 'handoffs.index')->with('success', $message);
         } catch (InvalidArgumentException $e) {
             return redirect()->route(Auth::user()->isFarmer() ? 'farmer.handoff' : 'vendor.dashboard')
                 ->with('error', 'Handoff rejected: '.$e->getMessage());

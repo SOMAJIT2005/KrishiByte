@@ -40,18 +40,18 @@ class CalculationService
     {
         $count = count($prices);
         if ($count < 3) {
-            return ['indicative_price' => null, 'sample_count' => $count, 'confidence' => 'none', 'method' => 'none'];
+            return ['indicative_price' => null, 'sample_count' => $count, 'sample_sufficiency' => 'none', 'method' => 'none'];
         }
         sort($prices, SORT_NUMERIC);
         if ($count < 5) {
             $middle = intdiv($count, 2);
             $value = $count % 2 ? $prices[$middle] : ($prices[$middle - 1] + $prices[$middle]) / 2;
 
-            return ['indicative_price' => round($value, 2), 'sample_count' => $count, 'confidence' => 'medium', 'method' => 'median'];
+            return ['indicative_price' => round($value, 2), 'sample_count' => $count, 'sample_sufficiency' => 'minimum_met', 'method' => 'median'];
         }
         $trim = (int) floor($count * .2);
         $values = array_slice($prices, $trim, $count - 2 * $trim);
 
-        return ['indicative_price' => round(array_sum($values) / count($values), 2), 'sample_count' => $count, 'confidence' => 'high', 'method' => '20%_trimmed_mean'];
+        return ['indicative_price' => round(array_sum($values) / count($values), 2), 'sample_count' => $count, 'sample_sufficiency' => 'larger_sample', 'method' => '20%_trimmed_mean'];
     }
 }

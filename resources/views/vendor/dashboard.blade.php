@@ -3,18 +3,19 @@
 @section('title', 'Vendor Custody Workspace — KrishiByte')
 
 @section('content')
+<form method="GET" class="d-flex gap-2 mb-3"><label for="buyer_search" class="visually-hidden">Search counterparties</label><input id="buyer_search" name="buyer_search" class="form-control" value="{{ request('buyer_search') }}" placeholder="Search recipient name (up to 50 matches)" maxlength="100"><button class="btn btn-outline-primary">Find recipient</button></form>
+<a href="{{ route('handoffs.index') }}" class="btn btn-outline-primary mb-3">Review handoff proposals</a>
 @if($user->isCollector())
-<div class="card mb-4"><div class="card-header"><h2 class="h5 mb-1">Collect from a farmer</h2><p class="small text-muted mb-0">Record the agreed farm purchase. Farmer identity, original quantity, and every onward handoff stay attached to this lot.</p></div><div class="card-body">
+<div class="card card-body mb-4"><h2 class="h5">Collect from a farmer</h2><p>Enter the agreed quantity and price, upload the handwritten agreement, and collect the lot without a farmer login.</p><a href="{{ route('vendor.farm-purchase') }}" class="btn btn-primary align-self-start mb-3">Record farmer purchase</a>
 @forelse($collectionBatches as $lot)
-<form class="row g-2 align-items-end border-bottom pb-3 mb-3" method="POST" action="{{ route('vendor.collect') }}">@csrf
-<input type="hidden" name="batch_id" value="{{ $lot->id }}"><input type="hidden" name="quantity" value="{{ $lot->available_quantity }}"><input type="hidden" name="district_id" value="{{ $user->district_id ?: $lot->origin_district_id }}">
-<div class="col-lg-5"><strong>{{ $lot->batch_code }} · {{ $lot->crop->name }}</strong><div class="small text-muted">{{ $lot->farmer->name }} <x-verified-badge :user="$lot->farmer" /> · {{ $lot->originDistrict->name }} · {{ $lot->available_quantity }} {{ $lot->unit }}</div></div>
-<div class="col-md-4 col-lg-3"><label class="form-label small" for="collection-price-{{ $lot->id }}">Agreed price (BDT/{{ $lot->unit }})</label><input id="collection-price-{{ $lot->id }}" class="form-control" type="number" name="price_per_unit" min="0.01" step="0.01" value="{{ $lot->initial_farmer_price }}" required></div>
-<div class="col-md-4 col-lg-2"><label class="form-label small" for="collection-market-{{ $lot->id }}">Collection location</label><input id="collection-market-{{ $lot->id }}" name="market_name" class="form-control" value="{{ $lot->farm_location_name }}" maxlength="255"></div>
-<div class="col-md-4 col-lg-2"><button class="btn btn-primary w-100">Record collection</button></div></form>
-@empty<p class="text-muted mb-0">No harvest lots are available for collection.</p>@endforelse
-@if($collectionBatches->isNotEmpty()){{ $collectionBatches->links() }}@endif
-</div></div>
+<div class="border-top py-3"><strong>{{ $lot->batch_code }} · {{ $lot->crop->name }}</strong><div class="small text-muted">{{ $lot->farmer->name }} · {{ $lot->available_quantity }} {{ $lot->unit }}</div><a href="{{ route('vendor.farm-purchase',['batch_id'=>$lot->id]) }}" class="btn btn-outline-primary btn-sm mt-2">Upload agreement & collect this lot</a></div>
+@empty
+<p class="small text-muted">No existing farm lots available. Record a purchase to create a new lot.</p>
+@endforelse
+@if($collectionBatches->isNotEmpty())
+{{ $collectionBatches->links() }}
+@endif
+</div>
 @endif
 <div class="row g-3 mb-4 align-items-center">
     <div class="col-md-8">
@@ -31,7 +32,7 @@
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
         <button type="button" class="btn btn-primary px-4 py-2" data-bs-toggle="modal" data-bs-target="#recordHandoffModal" style="border-radius: 0.5rem;">
-            <i class="bi bi-arrow-left-right me-1"></i> Record Custody Handoff
+            <i class="bi bi-arrow-left-right me-1"></i> {{ $user->isRetail() ? 'Record retail sale' : 'Propose custody handoff' }}
         </button>
     </div>
 </div>
@@ -100,7 +101,7 @@
                 <i class="bi bi-inbox fs-5" style="color: var(--kb-warning);"></i>
                 <span class="section-title mb-0">Inventory Under Current Custody</span>
             </div>
-            <div class="section-subtitle mt-1">You are legally and operationally responsible for these lots</div>
+            <div class="section-subtitle mt-1">Recorded inventory assigned to your account</div>
         </div>
         <span class="badge bg-light text-dark border d-inline-flex align-items-center">
             <i class="bi bi-box me-1"></i> {{ $batchesInCustody->count() }} active lots
@@ -148,7 +149,7 @@
                             </td>
                             <td>
                                 <span class="badge bg-info bg-opacity-10 text-info d-inline-flex align-items-center" style="font-size: 0.6875rem;">
-                                    <i class="bi bi-hold me-1"></i> In Custody
+                                    <i class="bi bi-hold me-1"></i> In Custody @if($batch->handoffProposals->isNotEmpty())<small class="d-block">Pending handoff · stock reserved</small>@endif
                                 </span>
                             </td>
                             <td>
@@ -238,8 +239,8 @@
                             </td>
                             <td>
                                 @if($tx->seller_id === auth()->id())
-                                    <div><strong class="d-block" style="font-size: 0.875rem;">{{ $tx->buyer->name }}</strong></div>
-                                    <small class="text-muted" style="font-size: 0.6875rem;">{{ $tx->buyer->role }}</small>
+                                    <div><strong class="d-block" style="font-size: 0.875rem;">{{ $tx->buyer?->name ?? 'Anonymous retail customer' }}</strong></div>
+                                    <small class="text-muted" style="font-size: 0.6875rem;">{{ $tx->buyer?->role ?? 'consumer' }}</small>
                                 @else
                                     <div><strong class="d-block" style="font-size: 0.875rem;">{{ $tx->seller->name }}</strong></div>
                                     <small class="text-muted" style="font-size: 0.6875rem;">{{ $tx->seller->role }}</small>
@@ -320,10 +321,10 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" action="{{ route(auth()->user()->isFarmer() ? 'farmer.handoff.store' : 'vendor.handoff.store') }}" id="handoffForm">
-                @csrf
+                @csrf<input type="hidden" name="request_key" value="{{ \Illuminate\Support\Str::uuid() }}">
                 <div class="modal-header" style="background: var(--kb-primary); color: #fff;">
                     <h5 class="modal-title fw-bold">
-                        <i class="bi bi-arrow-left-right me-1"></i> Record Custody Handoff
+                        <i class="bi bi-arrow-left-right me-1"></i> {{ $user->isRetail() ? 'Record retail sale' : 'Propose custody handoff' }}
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -375,11 +376,11 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label for="buyer_id" class="form-label">Transfer Recipient <span class="text-danger">*</span></label>
-                            <select name="buyer_id" id="buyer_id" class="form-select" required>
-                                <option value="">-- Choose Recipient --</option>
+                            <label for="buyer_id" class="form-label">{{ $user->isRetail() ? 'Customer (optional)' : 'Transfer recipient *' }}</label>
+                            <select name="buyer_id" id="buyer_id" class="form-select" {{ $user->isRetail() ? '' : 'required' }}>
+                                <option value="">{{ $user->isRetail() ? 'Anonymous retail customer' : '-- Choose Recipient --' }}</option>
                                 @foreach($eligibleBuyers as $eb)
-                                    <option value="{{ $eb->id }}">{{ $eb->name }} ({{ ucfirst($eb->role) }} • {{ $eb->email }})</option>
+                                    <option value="{{ $eb->id }}">{{ $eb->name }} ({{ ucfirst($eb->role) }})</option>
                                 @endforeach
                             </select>
                         </div>
@@ -408,7 +409,7 @@
                             <label for="modal_price" class="form-label">Sale Price / Unit (BDT) <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text" style="background: #f8fafc;">৳</span>
-                                <input type="number" step="0.5" name="price_per_unit" id="modal_price" class="form-control" placeholder="Price" required oninput="calculatePreviewSpread()">
+                                <input type="number" step="0.01" min="0.01" name="price_per_unit" id="modal_price" class="form-control" placeholder="Price" required oninput="calculatePreviewSpread()">
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -432,7 +433,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary px-4" style="border-radius: 0.5rem;">
-                        <i class="bi bi-check-circle me-1"></i> Confirm Custody Transfer
+                        <i class="bi bi-check-circle me-1"></i> {{ $user->isRetail() ? 'Record retail sale' : 'Submit handoff proposal' }}
                     </button>
                 </div>
             </form>
@@ -445,7 +446,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" id="voidForm">
-                @csrf
+                @csrf<input type="hidden" name="request_key" value="{{ \Illuminate\Support\Str::uuid() }}">
                 <div class="modal-header" style="background: var(--kb-danger); color: #fff;">
                     <h5 class="modal-title fw-bold">
                         <i class="bi bi-x-circle me-1"></i> Void Transaction

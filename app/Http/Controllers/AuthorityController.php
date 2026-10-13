@@ -78,27 +78,32 @@ class AuthorityController extends Controller
     public function reviewFlag(Request $request, int $id)
     {
         $flag = AnomalyFlag::findOrFail($id);
+        abort_if($flag->user_id === Auth::id(), 403, 'You cannot review your own transaction flag.');
 
         $validated = $request->validate([
             'status' => ['required', 'in:reviewing,cleared,escalated'],
             'reviewer_notes' => ['required', 'string', 'min:5', 'max:1000'],
         ]);
 
-        $beforeStatus = $flag->status;
+        DB::transaction(function () use ($id, $validated) {
+            $flag = AnomalyFlag::lockForUpdate()->findOrFail($id);
+            $beforeStatus = $flag->status;
 
-        $flag->update([
-            'status' => $validated['status'],
-            'reviewer_notes' => $validated['reviewer_notes'],
-            'reviewed_by_user_id' => Auth::id(),
-        ]);
+            $flag->update([
+                'status' => $validated['status'],
+                'reviewer_notes' => $validated['reviewer_notes'],
+                'reviewed_by_user_id' => Auth::id(),
+            ]);
 
-        AuditLoggerService::log(
-            action: 'FLAG_REVIEWED',
-            targetType: 'AnomalyFlag',
-            targetId: $flag->id,
-            notes: "Flag #{$flag->id} status updated from '{$beforeStatus}' to '{$flag->status}'. Notes: {$flag->reviewer_notes}",
-            userId: Auth::id()
-        );
+            AuditLoggerService::log(
+                action: 'FLAG_REVIEWED',
+                targetType: 'AnomalyFlag',
+                targetId: $flag->id,
+                notes: "Flag #{$flag->id} status updated from '{$beforeStatus}' to '{$flag->status}'. Notes: {$flag->reviewer_notes}",
+                userId: Auth::id()
+            );
+
+        });
 
         return redirect()->route('authority.dashboard')
             ->with('success', "Anomaly Flag #{$id} has been marked as {$validated['status']}.");
@@ -107,6 +112,7 @@ class AuthorityController extends Controller
     public function moderateReport(Request $request, int $id)
     {
         $report = PriceReport::findOrFail($id);
+        abort_if($report->reporter_user_id === Auth::id(), 403, 'You cannot moderate your own report.');
 
         $validated = $request->validate([
             'status' => ['required', 'in:verified,rejected,duplicate'],
@@ -123,7 +129,7 @@ class AuthorityController extends Controller
                         'crop_id' => $report->crop_id, 'district_id' => $report->district_id,
                         'market_name' => $report->market_name, 'unit' => $report->unit,
                         'observed_retail_price' => $report->reported_price, 'observation_date' => $report->incident_date,
-                        'source' => 'verified_citizen_report', 'verification_status' => 'verified',
+                        'source' => 'verified_citizen_report', 'verification_status' => 'verified', 'is_demo' => $report->is_demo,
                         'entered_by_user_id' => Auth::id(), 'notes' => 'Reviewed report '.$report->tracking_code,
                     ]);
                 } elseif ($observation) {

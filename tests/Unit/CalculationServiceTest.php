@@ -43,13 +43,13 @@ class CalculationServiceTest extends TestCase
         $res0 = CalculationService::calculateReferencePrice([]);
         $this->assertNull($res0['indicative_price']);
         $this->assertEquals(0, $res0['sample_count']);
-        $this->assertEquals('none', $res0['confidence']);
+        $this->assertEquals('none', $res0['sample_sufficiency']);
 
-        // 2 samples: low confidence / insufficient sample warning
+        // 2 samples: low sample sufficiency / insufficient sample warning
         $res2 = CalculationService::calculateReferencePrice([30.00, 40.00]);
         $this->assertNull($res2['indicative_price']);
         $this->assertEquals(2, $res2['sample_count']);
-        $this->assertEquals('none', $res2['confidence']);
+        $this->assertEquals('none', $res2['sample_sufficiency']);
     }
 
     public function test_reference_price_median_for_medium_samples(): void
@@ -58,7 +58,7 @@ class CalculationServiceTest extends TestCase
         $res3 = CalculationService::calculateReferencePrice([30.00, 50.00, 35.00]);
         $this->assertEquals(35.00, $res3['indicative_price']);
         $this->assertEquals(3, $res3['sample_count']);
-        $this->assertEquals('medium', $res3['confidence']);
+        $this->assertEquals('minimum_met', $res3['sample_sufficiency']);
     }
 
     public function test_reference_price_trimmed_mean_for_high_sample_count(): void
@@ -67,7 +67,7 @@ class CalculationServiceTest extends TestCase
         $res5 = CalculationService::calculateReferencePrice([20.00, 30.00, 35.00, 40.00, 100.00]);
         $this->assertEquals(35.00, $res5['indicative_price']);
         $this->assertEquals(5, $res5['sample_count']);
-        $this->assertEquals('high', $res5['confidence']);
+        $this->assertEquals('larger_sample', $res5['sample_sufficiency']);
         $this->assertEquals('20%_trimmed_mean', $res5['method']);
     }
 }

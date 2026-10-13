@@ -5,14 +5,17 @@ namespace Tests\Feature;
 use App\Models\Batch;
 use App\Models\Crop;
 use App\Models\District;
+use App\Models\HandoffProposal;
 use App\Models\MarkupRule;
 use App\Models\PriceObservation;
 use App\Models\PriceReport;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BatchHandoffService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -35,9 +38,14 @@ class UpgradeWorkflowTest extends TestCase
 
     private function transfer(Batch $batch, User $seller, User $buyer, float $price, float $quantity = 100)
     {
-        return app(BatchHandoffService::class)->recordHandoff(['batch_id' => $batch->id, 'seller_id' => $seller->id,
-            'buyer_id' => $buyer->id, 'stage' => 'auto', 'quantity' => $quantity, 'price_per_unit' => $price,
-            'district_id' => District::first()->id, 'recorded_by_user_id' => $seller->id]);
+        $data = ['batch_id' => $batch->id, 'seller_id' => $seller->id, 'buyer_id' => $buyer->id, 'quantity' => $quantity, 'price_per_unit' => $price, 'district_id' => District::first()->id, 'recorded_by_user_id' => $seller->id];
+        $service = app(BatchHandoffService::class);
+        if ($seller->isRetail()) {
+            return $service->recordRetailSale($data, (string) Str::uuid());
+        }
+        $proposal = $service->propose($data, (string) Str::uuid());
+
+        return Transaction::findOrFail($service->decide($proposal->id, $buyer->id, 'accepted')->transaction_id);
     }
 
     public function test_multi_intermediary_chain_and_retail_stock_conservation(): void
@@ -97,10 +105,10 @@ class UpgradeWorkflowTest extends TestCase
         $admin = $this->person('admin');
         $farmer = $this->person('farmer');
         $this->actingAs($farmer)->post(route('admin.users.verify', $farmer->id), ['verified' => 1, 'reason' => 'Self assignment'])->assertForbidden();
-        $this->actingAs($admin)->post(route('admin.users.verify', $farmer->id), ['verified' => 1, 'reason' => 'Reviewed identity records'])->assertRedirect();
+        $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()])->post(route('admin.users.verify', $farmer->id), ['verified' => 1, 'reason' => 'Reviewed identity records'])->assertRedirect();
         $this->assertTrue($farmer->fresh()->is_verified);
         $this->assertDatabaseHas('audit_logs', ['action' => 'USER_VERIFICATION_UPDATED', 'target_id' => $farmer->id]);
-        $this->actingAs($admin)->post(route('admin.users.verify', $farmer->id), ['verified' => 0, 'reason' => 'Review needs renewal'])->assertRedirect();
+        $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()])->post(route('admin.users.verify', $farmer->id), ['verified' => 0, 'reason' => 'Review needs renewal'])->assertRedirect();
         $this->assertFalse($farmer->fresh()->is_verified);
         foreach (['collector', 'wholesale', 'retail'] as $role) {
             $participant = $this->person($role);
@@ -159,9 +167,12 @@ class UpgradeWorkflowTest extends TestCase
         $farmer = $this->person('farmer');
         $batch = $this->batch($farmer);
         $collector = $this->person('collector');
-        $payload = ['batch_id' => $batch->id, 'quantity' => 100, 'price_per_unit' => 22, 'district_id' => District::first()->id];
+        $payload = ['request_key' => (string) Str::uuid(), 'batch_id' => $batch->id, 'quantity' => 100, 'price_per_unit' => 22, 'district_id' => District::first()->id];
         $this->actingAs($this->person('retail'))->post(route('vendor.collect'), $payload)->assertForbidden();
         $this->actingAs($collector)->post(route('vendor.collect'), $payload)->assertRedirect();
+        $this->assertEquals($farmer->id, $batch->fresh()->current_custodian_id);
+        $proposal = HandoffProposal::where('batch_id', $batch->id)->firstOrFail();
+        $this->actingAs($farmer)->post(route('handoffs.decide', $proposal->id), ['decision' => 'accepted'])->assertRedirect();
         $this->assertEquals($collector->id, $batch->fresh()->current_custodian_id);
         $this->assertEquals($farmer->id, $batch->transactions()->first()->seller_id);
     }

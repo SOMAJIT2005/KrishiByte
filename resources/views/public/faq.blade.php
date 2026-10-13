@@ -120,7 +120,7 @@
                                 </div>
                                 <div class="mt-3 p-3 rounded bg-light border small" style="border-color: var(--kb-border); color: var(--kb-text-muted);">
                                     <i class="bi bi-shield-check me-1" style="color: var(--kb-primary-light);"></i>
-                                    <strong>Important:</strong> KrishiByte never fabricates prices or claims official government endorsement without legitimate data from the Department of Agricultural Marketing, Bangladesh Bureau of Statistics, or authorized field monitors.
+                                    <strong>Important:</strong> The local demo uses illustrative samples and has no established government affiliation. Real observations require documented sources; anomaly flags are review signals, not findings of misconduct.
                                 </div>
                             </div>
                         </div>

@@ -24,10 +24,13 @@ class User extends Authenticatable
         'district_id',
         'password',
         'is_verified', 'verified_by_user_id', 'verification_date', 'verification_reason',
+        'farmer_profile_public', 'grown_crop_ids', 'cultivation_notes',
     ];
 
+    protected $attributes = ['is_verified' => false];
+
     protected $hidden = [
-        'password',
+        'password', 'nid_or_trade_license', 'phone', 'email',
         'remember_token',
     ];
 
@@ -36,7 +39,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'is_verified' => 'boolean', 'verification_date' => 'datetime',
-            'password' => 'hashed',
+            'password' => 'hashed', 'nid_or_trade_license' => 'encrypted',
+            'farmer_profile_public' => 'boolean', 'grown_crop_ids' => 'array',
         ];
     }
 

@@ -1,4 +1,18 @@
-# Verification — 12 October 2026
+# Verification — 13 October 2026
+
+Latest verification supersedes the historical results below: **59 tests passed, 395 assertions**, on both `krishibyte_test` and independently migrated/seeded `krishibyte_security_qa`. Test cases roll back their fixtures. New checks cover bounded/source-aware analytics, exact deduplication, encrypted identities, session regeneration, independent request limits, role restrictions, private uploads, proposal acceptance/dispute/cancel/expiry, unit snapshots, idempotent agreements/retail sales, rating moderation, enrollment generation, production-disabled demo population and repeat seeding.
+
+`tools/concurrency-check.php` passed using real parallel MySQL processes in the test DB: one transaction for duplicate acceptance; no oversell for concurrent 60/100kg sales; one deduction for duplicate retail-sale requests. Backup/restore comparisons matched exact rows across 19 tables before hardening and 23 tables after new farmer workflows, using isolated restore databases.
+
+Live browser checks on localhost verified: receipt #15 for a synthetic 10kg purchase at BDT21/kg, private agreement upload, updated farmer quantity/sales profile, middleman rating moderation/publication, synthetic enrollment → admin password confirmation → profile #10, anonymous retail receipt/stock, all-crop analytics, source/district/product selection, latest/high/low chart, and the new showcase guide. At 375px viewport, analytics document width was 360px and chart width 299px: no page overflow. Desktop checks used 1440px. Screenshots are in `docs/screenshots`, including `analytics-price-history.jpg`, `public-analytics.jpg`, `analytics-mobile.jpg`, `farmer-profile.jpg` and `farmer-agreement-receipt.jpg`.
+
+Both launcher branches passed: reuse of the running server on 8000, and start of an isolated hidden test server on 8011 (then stopped after verifying its PID/command line). `Populate-Showcase.ps1 -NoBrowser` passed with 10 workflow lots, 1,470 analytics samples and 12 report examples; scenario tests prove reruns preserve quantities, notes and completed actions.
+
+Fixed defects found during verification: shared numeric-throttle buckets made tracking incorrectly return 429 after registration requests (replaced with named limiters); anonymous customer rendering failed on the admin batch page (nullable handling); farmer purchase used an unsupported batch review enum (corrected to `unverified`); batch/report code dates used host UTC instead of the Bangladesh date (corrected); nested Blade directives in analytics failed compilation (reformatted); demo report moderation lacked demo provenance (now preserved). A transient Windows formatter write lock succeeded on retry.
+
+Composer audit: no locked-package advisories/abandoned packages. npm audit: unavailable without an npm lockfile, so frontend dependency safety is not claimed. PHP lint, Blade compilation, focused Pint and whitespace checks are recorded in WORK_SUMMARY.md. Local checks are not a production, load or exhaustive browser certification; see SECURITY_REVIEW.md for remaining work.
+
+## Historical verification — 12 October
 
 ## Automated checks
 

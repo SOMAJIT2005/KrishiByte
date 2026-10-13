@@ -10,86 +10,37 @@ use App\Models\User;
 
 class AnomalyDetectionService
 {
-    /**
-     * Evaluate transaction markup against active rules and generate flags if breached.
-     */
     public static function evaluateTransaction(Transaction $transaction): ?AnomalyFlag
     {
-        if ($transaction->markup_percent === null || $transaction->markup_percent <= 0) {
-            return null;
-        }
-
         $batch = $transaction->batch;
-        $cropId = $batch->crop_id;
-        $stage = $transaction->stage;
-
-        // Find most specific active rule (crop + stage, then crop + all, then all + stage, then default all + all)
+        $day = $transaction->transaction_date->timezone('Asia/Dhaka')->toDateString();
         $rule = MarkupRule::where('is_active', true)
-            ->where(function ($q) use ($cropId) {
-                $q->where('crop_id', $cropId)->orWhereNull('crop_id');
-            })
-            ->where(function ($q) use ($stage) {
-                $q->where('stage', $stage)->orWhere('stage', 'all');
-            })
-            ->orderByRaw('crop_id IS NOT NULL DESC')
-            ->orderByRaw("stage != 'all' DESC")
-            ->latest('id')
-            ->first();
-
+            ->where(fn ($q) => $q->where('crop_id', $batch->crop_id)->orWhereNull('crop_id'))
+            ->where(fn ($q) => $q->where('stage', $transaction->stage)->orWhere('stage', 'all'))
+            ->where(fn ($q) => $q->whereNull('effective_from')->orWhereDate('effective_from', '<=', $day))
+            ->where(fn ($q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', $day))
+            ->orderByRaw('crop_id IS NOT NULL DESC')->orderByRaw("stage != 'all' DESC")->latest('id')->first();
         if (! $rule) {
             return null;
         }
-
-        $threshold = (float) $rule->max_markup_percent;
-        $measured = (float) $transaction->markup_percent;
-
-        $spreadExceeded = $rule->max_spread_amount !== null && (float) $transaction->gross_price_spread > (float) $rule->max_spread_amount;
-        if ($measured > $threshold || $spreadExceeded) {
-            $excess = $measured - $threshold;
-            $severity = 'low';
-            if ($excess >= 40) {
-                $severity = 'high';
-            } elseif ($excess >= 15) {
-                $severity = 'medium';
+        $first = null;
+        foreach ([['EXCESSIVE_MARKUP', $transaction->markup_percent, $rule->max_markup_percent, '%'], ['EXCESSIVE_SPREAD', $transaction->gross_price_spread, $rule->max_spread_amount, ' BDT/'.$transaction->unit]] as [$reason,$measured,$threshold,$unit]) {
+            if ($measured === null || $threshold === null || (float) $measured <= (float) $threshold) {
+                continue;
             }
-
-            $flag = AnomalyFlag::create([
-                'batch_id' => $batch->id,
-                'transaction_id' => $transaction->id,
-                'user_id' => $transaction->seller_id,
-                'rule_id' => $rule->id,
-                'reason_code' => $measured > $threshold ? 'EXCESSIVE_MARKUP' : 'EXCESSIVE_SPREAD',
-                'measured_value' => $measured > $threshold ? $measured : $transaction->gross_price_spread,
-                'threshold_value' => $measured > $threshold ? $threshold : $rule->max_spread_amount,
-                'severity' => $severity,
-                'status' => 'new',
-            ]);
-
-            // Update transaction validation status
+            $excessRatio = (float) $threshold > 0 ? ((float) $measured - (float) $threshold) / (float) $threshold : INF;
+            $severity = $excessRatio >= 1 ? 'high' : ($excessRatio >= .25 ? 'medium' : 'low');
+            $snapshot = ['explanation' => $rule->explanation, 'max_markup_percent' => $rule->max_markup_percent, 'max_spread_amount' => $rule->max_spread_amount, 'effective_from' => $rule->effective_from?->toDateString(), 'effective_to' => $rule->effective_to?->toDateString(), 'unit' => $transaction->unit, 'severity_method' => 'relative excess: >=100% high, >=25% medium, otherwise low; positive breach of zero cap high'];
+            $flag = AnomalyFlag::create(['batch_id' => $batch->id, 'transaction_id' => $transaction->id, 'user_id' => $transaction->seller_id, 'rule_id' => $rule->id, 'reason_code' => $reason, 'measured_value' => $measured, 'threshold_value' => $threshold, 'severity' => $severity, 'status' => 'new', 'rule_snapshot' => $snapshot]);
+            $first ??= $flag;
             $transaction->update(['validation_status' => 'flagged']);
-
-            // Notify authorities
-            $authorities = User::whereIn('role', ['authority', 'admin'])->get();
-            foreach ($authorities as $authority) {
-                Notification::create([
-                    'user_id' => $authority->id,
-                    'title' => "Price Anomaly Flagged: Batch {$batch->batch_code}",
-                    'message' => "Markup of {$measured}% exceeded threshold ({$threshold}%) for {$batch->crop->name} at stage {$stage}.",
-                    'link' => '/authority/dashboard',
-                ]);
+            $message = ($reason === 'EXCESSIVE_SPREAD' ? 'Gross price spread' : 'Markup')." {$measured}{$unit} exceeded {$threshold}{$unit}; {$severity} review signal, not a misconduct finding.";
+            foreach (User::whereIn('role', ['authority', 'admin'])->where('account_status', 'active')->get() as $reviewer) {
+                Notification::create(['user_id' => $reviewer->id, 'title' => "Price review: {$batch->batch_code}", 'message' => $message, 'link' => '/authority/dashboard']);
             }
-
-            // Notify seller under observation
-            Notification::create([
-                'user_id' => $transaction->seller_id,
-                'title' => 'Transaction Notice: Review Required',
-                'message' => "Your transaction on batch {$batch->batch_code} has been marked for review due to price spread of {$measured}%.",
-                'link' => '/vendor/dashboard',
-            ]);
-
-            return $flag;
+            Notification::create(['user_id' => $transaction->seller_id, 'title' => 'Transaction review required', 'message' => $message, 'link' => $transaction->seller->isFarmer() ? '/farmer/handoff' : '/vendor/dashboard']);
         }
 
-        return null;
+        return $first;
     }
 }

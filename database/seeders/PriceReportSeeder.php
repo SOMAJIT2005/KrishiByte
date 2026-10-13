@@ -19,6 +19,7 @@ class PriceReportSeeder extends Seeder
 
         // 1. Pending report (waiting for authority review)
         PriceReport::firstOrCreate(['tracking_code' => 'RPT-20261012-ON001'], [
+            'is_demo' => true,
             'reporter_name' => 'Tariqul Islam',
             'reporter_phone' => '+8801715000005',
             'reporter_email' => 'consumer.tariq@krishibyte.local',
@@ -38,6 +39,7 @@ class PriceReportSeeder extends Seeder
 
         // 2. Verified report
         PriceReport::firstOrCreate(['tracking_code' => 'RPT-20261011-PO002'], [
+            'is_demo' => true,
             'reporter_name' => 'M. Alam',
             'reporter_phone' => '+8801819000008',
             'reporter_email' => 'm.alam@example.com',
@@ -58,6 +60,7 @@ class PriceReportSeeder extends Seeder
 
         // 3. Rejected report
         PriceReport::firstOrCreate(['tracking_code' => 'RPT-20261009-RE003'], [
+            'is_demo' => true,
             'reporter_name' => 'Anonymous',
             'reporter_phone' => null,
             'reporter_email' => null,

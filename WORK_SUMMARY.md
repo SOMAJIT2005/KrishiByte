@@ -1,8 +1,77 @@
 # KrishiByte (কৃষি-বাইট) — Project Build & Work Summary
 
-**Project Root:** `D:\KrishiByte`  
-**Generated At:** 2026-10-12  
-**Status:** Upgraded and verified locally; see the 12 October 2026 upgrade section below. Earlier sections describe the original build and are superseded where they conflict.
+**Project Root:** `D:\KrishiByte`
+**Generated At:** 2026-10-13
+**Status:** Upgraded, populated for demonstration, and verified locally. The latest update below supersedes earlier sections where they conflict.
+
+## Latest update — 13 October 2026
+
+### Follow-up: populate the analytics page shown in the screenshot
+
+- Refreshed the idempotent demo price-history seeder: 1,470 illustrative samples for seven crops, three districts, and fourteen days. Existing non-demo records remain unchanged.
+- The screenshot used `source=survey`, which correctly excludes synthetic observations. Added a direct “Show illustrative demo prices” link to empty non-demo product charts, retaining product/date/window/district filters.
+- Verified the link on the live Green Chili page. The all-district demo chart displays latest BDT 100.44/kg, lowest BDT 90.44/kg, and highest BDT 240.44/kg, with the spike/drop curve and all seven product trends.
+- Analytics tests passed: two tests, twenty-six assertions. Blade compilation passed. Screenshot: `docs/screenshots/analytics-demo-refreshed.png`.
+
+### Follow-up fix: missing route-map locations
+
+- Root cause: the privacy change left `mapPoints` empty, so Leaflet loaded its background tiles without markers or a journey line.
+- Restored origin and non-voided handoff points using district-centre coordinates only. Private farm and transaction coordinates remain undisclosed.
+- Added persistent district labels and grouped same-district visits into a single clickable marker listing handoff stages and prices. Circle markers avoid dependence on external marker-icon images.
+- Clarified that district centres are approximate and connecting lines indicate record sequence, not a measured road route. Missing district coordinates are skipped with an explanatory empty-state message.
+- Verification: seven focused tests passed with fifty assertions, including district-coordinate mapping, private-coordinate exclusion, and missing-coordinate handling. Blade compilation passed. On the live potato journey, Bogura and Dhaka labels and the line rendered, and the Dhaka popup listed its five recorded handoffs. Evidence: `docs/screenshots/route-map-restored.png`.
+
+### Demonstration data and analytics
+
+- Added `showcase:populate`, `Populate-Showcase.cmd`, and `tools/Populate-Showcase.ps1`. The command adds demonstration records without resetting the database or changing existing account credentials. Repeating it preserves completed workflow actions.
+- Populated 1,470 price observations across seven crops, three districts, and fourteen days, with five illustrative samples per crop/district/day. Older demonstration observations remain available. Every added observation is explicitly marked as demonstration data; these are not real market surveys or government prices.
+- Included rising potato prices, falling onion and rice prices, volatile tomatoes, a chili spike followed by a drop, stable brinjal prices, and a cauliflower recovery.
+- Public `/analytics` offers crop, district, source, date, and period filters; daily price charts; latest, lowest, and highest reference prices with dates; rising/falling insights; and an accessible daily data table. Insufficient samples remain gaps rather than invented prices. Source types remain separate.
+- Added ten prepared batches covering collector custody, wholesale custody, retail stock, unusually high markup, pending/disputed/cancelled handoffs, sold-out stock, farmer-ready produce, and a rejected batch. Initial fixture state contains eighteen transactions, ten proposals, and eight private illustrative purchase agreements.
+- Added twelve demonstration reports spanning four categories and pending/verified/rejected review states, plus enrollment and rating examples. Demo report moderation continues to produce demo observations, preventing synthetic prices from entering real reference calculations.
+- `/demo-showcase` now includes expandable instructions for public visitors, farmers, collectors, wholesalers, retailers, consumers, authorities, and administrators, alongside prepared scenario links. Full presentation instructions are in `docs/SHOWCASE.md`.
+
+### Farmer enrollment and collector purchasing
+
+- Farmer enrollment generates an administrator-reviewed public profile instead of requiring daily farmer dashboard use. Profiles show declared crops, recorded lots and sales quantities, and approved rating reports while keeping contact information private.
+- Collectors record the farmer, crop, quantity, agreed price, harvest details, witness/read-aloud declaration, and a required private agreement image. The service creates or acquires the lot and records stock and terms together.
+- Collector-recorded purchases are explicitly labelled collector attestation; uploading an agreement does not claim independent farmer confirmation. Onward business handoffs require the intended recipient to accept, dispute, or the proposer to cancel.
+- Middlemen and consumer accounts can rate enrolled farmers. Ratings require moderation, edits return to review, and one rating per account/farmer is enforced. This is not proof of a unique person or a verified purchase.
+- Added a clearly labelled synthetic agreement image for showcasing uploads. It is not a real signed or handwritten contract.
+
+### Integrity, privacy, and security review changes
+
+- Added pending handoff reservations, stock locking, expiry, actor-scoped idempotency, terms snapshots, and exact participant/role checks. Repeated acceptance and competing sales cannot duplicate transfers or oversell available stock.
+- Preserved legacy transaction history with explicit legacy confirmation labels. Anonymous retail sales support a nullable buyer and partial stock depletion.
+- Reference prices compare reviewed observations for the same crop, canonical unit, district, date, and source. Duplicate contributions are deduplicated; fewer than three samples produce no reference; larger samples use the documented median/trimmed calculation.
+- Anomaly rules preserve zero limits, respect effective dates, distinguish markup from spread, and retain rule snapshots explaining flags. A flag is a review signal rather than a finding of wrongdoing.
+- Added independent route rate limits, suspended-account logout, private-response cache controls, and current-password confirmation for sensitive administrator decisions. Demo login does not bypass password confirmation.
+- National identity/trade identifiers are encrypted using the existing application key. Private evidence is validated, re-encoded, size-limited, access-controlled, and associated with an original-file hash. Public pages omit private contacts, consumer names, and precise farm location.
+- Application audit entries reject model-level editing and deletion. This is not a claim of immutable SQL storage.
+- Removed `.env` from tracked source while preserving the working environment and encryption key. Previously committed secrets still require a deliberate deployment/history remediation plan.
+- Detailed gap decisions and remaining deployment work are recorded in `docs/SECURITY_REVIEW.md`.
+
+### Tests and live checks
+
+- Complete suite: **59 tests, 395 assertions passed** against both `krishibyte_test` and an independently migrated/seeded `krishibyte_security_qa` database.
+- Parallel-process checks passed for duplicate handoff acceptance, competing retail sales, and repeated sales with the same idempotency key.
+- Population tests verify dataset counts, source separation, repeat-run preservation, scenario states, and production-environment rejection. Analytics tests cover rising/falling/stable patterns, gaps, date/district filters, and high/low values.
+- Live browser checks covered farmer enrollment approval, collector agreement upload and receipt, profile sales totals, recipient acceptance, anonymous retail sale, rating moderation, analytics filtering and chart rendering, and role walkthroughs.
+- In the Chattogram chili demo, the chart reaches BDT 246/kg and later drops to BDT 106/kg. The crop overview shows two rising crops, four falling crops, and one stable crop. This is illustrative data.
+- Checked analytics at a 375-pixel mobile viewport with no horizontal page overflow. Screenshots are saved in `docs/screenshots`, including `analytics-price-history.jpg`.
+- Both showcase launcher branches passed: reuse the running port 8000 server and start a hidden development server on port 8011. The temporary 8011 process was stopped after verification.
+- PHP formatting, Blade compilation, and targeted syntax checks passed during implementation. Composer audit reported no locked-package advisories or abandoned packages. npm audit could not run because no npm lockfile exists; no frontend audit clearance is claimed.
+- Fixed shared numeric throttle buckets, nullable-buyer administrator rendering, unsupported confirmation-state handling, Bangladesh-date batch codes, nested Blade directive parsing, and demo-report source propagation.
+- Verified exact database restoration of earlier backups containing nineteen and twenty-three tables. Backups retain the matching local application key and private evidence; they are local recovery copies, not encrypted offsite backups.
+
+### How to present
+
+1. Run `Populate-Showcase.cmd` to prepare or refresh illustrative prices and open the showcase.
+2. Open `/analytics?source=demo`, select Chattogram and chili, and show the high/low cards, spike/drop chart, and other crop trends.
+3. Use `/demo-showcase` role buttons and walkthroughs: administrator enrollment review → collector purchase agreement → recipient handoff acceptance → retailer partial sale → consumer rating/report → authority review → administrator moderation.
+4. Use the prepared pending, disputed, cancelled, high-markup, and sold-out cases to explain alternative outcomes without rebuilding each case during the presentation.
+
+Local demonstration accounts and exact steps are in `docs/SHOWCASE.md`. The showcase and population command are restricted to local/testing use. SMS remains mocked, payment is unverified, and real identity checks, deployment hardening, split/merge stock handling, and independent farmer consent verification remain documented future work.
 
 ---
 

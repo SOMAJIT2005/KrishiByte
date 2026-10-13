@@ -5,9 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Batch;
 use App\Models\Crop;
 use App\Models\District;
-use App\Models\PriceObservation;
 use App\Services\AuditLoggerService;
-use App\Services\CalculationService;
+use App\Services\PriceReferenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -35,20 +34,13 @@ class FarmerController extends Controller
         $districtId = $farmer->district_id ?? $districts->first()?->id;
         $marketBenchmarks = [];
         foreach ($crops as $crop) {
-            $obs = PriceObservation::where('crop_id', $crop->id)
-                ->where('district_id', $districtId)
-                ->where('verification_status', 'verified')
-                ->pluck('observed_retail_price')
-                ->map(fn ($p) => (float) $p)
-                ->toArray();
-
-            $statsPrice = CalculationService::calculateReferencePrice($obs);
+            $statsPrice = PriceReferenceService::stats(PriceReferenceService::query($crop->id, $crop->unit, $districtId, now('Asia/Dhaka')->toDateString()));
             if ($statsPrice['indicative_price']) {
                 $marketBenchmarks[] = [
                     'crop' => $crop->name,
                     'price' => $statsPrice['indicative_price'],
                     'unit' => $crop->unit,
-                    'confidence' => $statsPrice['confidence'],
+                    'sample_sufficiency' => $statsPrice['sample_sufficiency'],
                     'samples' => $statsPrice['sample_count'],
                 ];
             }
@@ -66,7 +58,7 @@ class FarmerController extends Controller
             'farm_location_name' => ['nullable', 'string', 'max:255'],
             'harvest_date' => ['required', 'date', 'before_or_equal:today'],
             'initial_quantity' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
-            'unit' => ['required', 'string', 'max:20'],
+            'unit' => ['required', 'in:kg,mon,sack,piece'],
             'initial_farmer_price' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:100000'],
             'origin_latitude' => ['nullable', 'numeric', 'between:20,27'],
             'origin_longitude' => ['nullable', 'numeric', 'between:88,93'],

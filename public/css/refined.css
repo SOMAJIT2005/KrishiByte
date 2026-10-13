@@ -22,3 +22,5 @@ h1,h2,h3{letter-spacing:-.035em}h1{font-weight:750;font-size:clamp(1.8rem,3.5vw,
 :focus-visible{outline:3px solid #dca938;outline-offset:3px}
 @media(max-width:767px){.main-content{padding-top:1.4rem}.card-body{padding:1.1rem}.workspace-heading h1{font-size:1.8rem}.table>:not(caption)>*>*{padding:.85rem}.navbar .container{gap:.25rem}.btn{white-space:normal}.modal-dialog{margin:.5rem}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+@media print { .navbar, footer, .d-print-none, .skip-link { display:none !important; } .card { border:0; box-shadow:none !important; } }

@@ -12,7 +12,7 @@ class Transaction extends Model
     use HasFactory;
 
     protected $fillable = [
-        'batch_id',
+        'batch_id', 'confirmation_status', 'confirmed_by_user_id', 'request_key', 'request_hash',
         'sequence_no',
         'seller_id',
         'buyer_id',

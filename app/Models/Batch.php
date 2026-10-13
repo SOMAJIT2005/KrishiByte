@@ -49,10 +49,15 @@ class Batch extends Model
     public static function generateBatchCode(): string
     {
         do {
-            $code = 'KB-'.date('Ymd').'-'.strtoupper(Str::random(6));
+            $code = 'KB-'.now('Asia/Dhaka')->format('Ymd').'-'.strtoupper(Str::random(6));
         } while (static::where('batch_code', $code)->exists());
 
         return $code;
+    }
+
+    public function handoffProposals(): HasMany
+    {
+        return $this->hasMany(HandoffProposal::class);
     }
 
     public function crop(): BelongsTo

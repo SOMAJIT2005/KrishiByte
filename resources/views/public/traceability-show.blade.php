@@ -54,11 +54,7 @@
                             <i class="bi bi-geo-alt d-block fs-2 mb-2" style="color: var(--kb-danger);"></i>
                             <div class="text-muted small mb-1">Origin District</div>
                             <div class="fw-bold" style="color: var(--kb-text);">{{ $batch->originDistrict->name }}</div>
-                            @if($batch->farm_location_name)
-                                <small class="text-secondary mb-0">{{ $batch->farm_location_name }}</small>
-                            @else
-                                <small class="text-secondary mb-0">Farm Field</small>
-                            @endif
+
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
@@ -132,7 +128,7 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
                     <div class="section-title">Supply Chain Transit Route Map</div>
-                    <div class="section-subtitle">GPS waypoints and transit path across custody stages</div>
+                    <div class="section-subtitle">Approximate district centres for recorded stops. Connecting lines show sequence, not an actual road route. Precise coordinates are private.</div>
                 </div>
                 <span class="badge bg-light text-dark border small d-inline-flex align-items-center">
                     <i class="bi bi-map me-1"></i> OpenStreetMap & Leaflet
@@ -182,12 +178,10 @@
                             <i class="bi bi-geo-alt" style="color: var(--kb-danger); font-size: 0.8125rem;"></i>
                             <span style="color: var(--kb-text);">{{ $batch->originDistrict->name }}</span>
                         </div>
-                        @if($batch->farm_location_name)
-                            <small class="text-secondary">{{ $batch->farm_location_name }}</small>
-                        @endif
+
                     </div>
                     <div class="col-md-4">
-                        <div class="small text-muted d-block mb-1">Baseline Farm Price</div>
+                        <div class="small text-muted d-block mb-1">Declared farm-gate asking price</div>
                         <div class="fw-bold fs-4" style="color: var(--kb-success); font-family: monospace;">৳ {{ number_format($batch->initial_farmer_price, 2) }}</div>
                         <small class="text-secondary">/ {{ $batch->unit }}</small>
                     </div>
@@ -196,11 +190,13 @@
         </div>
     </div>
 
-    {{-- Transactions --}}
+    <p class="small text-muted">Times below are server record times. Historical entries are legacy and do not establish counterparty acceptance.</p>
+{{-- Transactions --}}
     @forelse($batch->transactions as $tx)
         <div class="col-12">
             <div class="card shadow-sm mb-3" style="border-left: 4px solid {{ $tx->validation_status === 'flagged' ? 'var(--kb-danger)' : 'var(--kb-primary-light)' }};">
                 <div class="card-body p-4">
+                    <span class="badge bg-secondary mb-2">{{ str_replace('_',' ', $tx->confirmation_status) }}</span>
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge px-2 py-1 d-inline-flex align-items-center" style="font-size: 0.6875rem;" {{ $tx->validation_status === 'flagged' ? 'style="background: var(--kb-danger); color: #fff;"' : '' }}>
@@ -225,8 +221,8 @@
                                 <strong>{{ $tx->seller->name }} <x-verified-badge :user="$tx->seller" /></strong>
                                 <span class="badge-role bg-light text-dark border ms-1">{{ $tx->seller->role }}</span>
                                 <span class="text-muted mx-1" style="font-size: 0.875rem;">→</span>
-                                <strong>{{ $tx->buyer->name }} <x-verified-badge :user="$tx->buyer" /></strong>
-                                <span class="badge-role bg-light text-dark border ms-1">{{ $tx->buyer->role }}</span>
+                                <strong>{{ $tx->stage === 'retail_sale' ? 'Private retail customer' : $tx->buyer?->name }} @if($tx->stage !== 'retail_sale')<x-verified-badge :user="$tx->buyer" />@endif</strong>
+                                <span class="badge-role bg-light text-dark border ms-1">{{ $tx->stage === 'retail_sale' ? 'customer' : $tx->buyer?->role }}</span>
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -297,19 +293,30 @@
 
         if (points && points.length > 0) {
             const latlngs = [];
-            points.forEach((pt, idx) => {
+            const stops = new Map();
+            points.forEach((pt) => {
                 const latlng = [pt.lat, pt.lng];
                 latlngs.push(latlng);
-
-                const marker = L.marker(latlng).addTo(map);
+                const key = `${pt.lat},${pt.lng}`;
+                if (!stops.has(key)) stops.set(key, []);
+                stops.get(key).push(pt);
+            });
+            stops.forEach((visits) => {
+                const pt = visits[0];
+                const marker = L.circleMarker([pt.lat, pt.lng], {
+                    radius: 8, color: '#14532d', fillColor: '#22c55e', fillOpacity: 1, weight: 2
+                }).addTo(map);
                 const unit = @json($batch->unit);
                 const popup = document.createElement('div');
-                popup.textContent = `${pt.name} · ${pt.stage} · BDT ${pt.price} per ${unit}`;
+                visits.forEach((visit) => {
+                    const row = document.createElement('div');
+                    row.textContent = `${visit.name} · ${visit.stage} · BDT ${visit.price} per ${unit}`;
+                    popup.appendChild(row);
+                });
                 marker.bindPopup(popup);
-
-                if (idx === 0) {
-                    marker.openPopup();
-                }
+                const label = document.createElement('span');
+                label.textContent = pt.name;
+                marker.bindTooltip(label, { permanent: true, direction: 'top' });
             });
 
             if (latlngs.length > 1) {
@@ -317,6 +324,7 @@
                     color: '#198754',
                     weight: 4,
                     dashArray: '8, 8',
+                    interactive: false,
                     opacity: 0.85
                 }).addTo(map);
 
@@ -324,6 +332,11 @@
             } else {
                 map.setView(latlngs[0], 11);
             }
+        } else {
+            const notice = document.createElement('p');
+            notice.className = 'small text-muted p-3';
+            notice.textContent = 'District coordinates are unavailable. Follow the recorded locations in the timeline below.';
+            document.getElementById('traceabilityMap').after(notice);
         }
     });
 </script>

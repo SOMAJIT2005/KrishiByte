@@ -51,6 +51,7 @@
             </div>
         </div>
 
+        @if(app()->environment('local'))
         <div class="card shadow-sm border-0 mt-4" style="border: 1px solid var(--kb-border);">
             <div class="card-body p-4">
                 <div class="d-flex align-items-center gap-2 mb-3">
@@ -64,38 +65,39 @@
                 </div>
                 <div class="row g-2">
                     <div class="col-6 col-md-4">
-                        <a href="{{ route('demo.login', 'farmer') }}" class="btn btn-outline-success btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-success); border-color: var(--kb-success);">
+                        <form method="POST" action="{{ route('demo.login', 'farmer') }}">@csrf<button class="btn btn-outline-success btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-success); border-color: var(--kb-success);" type="submit">
                             <i class="bi bi-tractor"></i> Farmer
-                        </a>
+                        </button></form>
                     </div>
                     <div class="col-6 col-md-4">
-                        <a href="{{ route('demo.login', 'collector') }}" class="btn btn-outline-info btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-info); border-color: var(--kb-info);">
+                        <form method="POST" action="{{ route('demo.login', 'collector') }}">@csrf<button class="btn btn-outline-info btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-info); border-color: var(--kb-info);" type="submit">
                             <i class="bi bi-truck"></i> Collector
-                        </a>
+                        </button></form>
                     </div>
                     <div class="col-6 col-md-4">
-                        <a href="{{ route('demo.login', 'wholesale') }}" class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-primary-light); border-color: var(--kb-primary-light);">
+                        <form method="POST" action="{{ route('demo.login', 'wholesale') }}">@csrf<button class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-primary-light); border-color: var(--kb-primary-light);" type="submit">
                             <i class="bi bi-building"></i> Wholesale
-                        </a>
+                        </button></form>
                     </div>
                     <div class="col-6 col-md-4">
-                        <a href="{{ route('demo.login', 'retail') }}" class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-text); border-color: var(--kb-border);">
+                        <form method="POST" action="{{ route('demo.login', 'retail') }}">@csrf<button class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-text); border-color: var(--kb-border);" type="submit">
                             <i class="bi bi-shop"></i> Retailer
-                        </a>
+                        </button></form>
                     </div>
                     <div class="col-6 col-md-4">
-                        <a href="{{ route('demo.login', 'authority') }}" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-danger); border-color: var(--kb-danger);">
+                        <form method="POST" action="{{ route('demo.login', 'authority') }}">@csrf<button class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-danger); border-color: var(--kb-danger);" type="submit">
                             <i class="bi bi-shield-check"></i> Authority
-                        </a>
+                        </button></form>
                     </div>
                     <div class="col-6 col-md-4">
-                        <a href="{{ route('demo.login', 'admin') }}" class="btn btn-outline-dark btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-text); border-color: var(--kb-border);">
+                        <form method="POST" action="{{ route('demo.login', 'admin') }}">@csrf<button class="btn btn-outline-dark btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-text); border-color: var(--kb-border);" type="submit">
                             <i class="bi bi-gear"></i> Admin
-                        </a>
+                        </button></form>
                     </div>
                 </div>
             </div>
         </div>
+        @endif
     </div>
 </div>
 @endsection

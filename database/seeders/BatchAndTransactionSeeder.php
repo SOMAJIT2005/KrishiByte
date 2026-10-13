@@ -48,7 +48,7 @@ class BatchAndTransactionSeeder extends Seeder
                 $seller = $farmer;
                 foreach ($chain as $index => $buyer) {
                     app(BatchHandoffService::class)->recordHandoff(['batch_id' => $batch->id, 'seller_id' => $seller->id,
-                        'buyer_id' => $buyer->id, 'stage' => 'auto', 'quantity' => $quantity,
+                        '_legacy_import' => true, 'buyer_id' => $buyer->id, 'stage' => 'auto', 'quantity' => $quantity,
                         'price_per_unit' => $price + ($cropName === 'Onion' ? 18 : 4) * ($index + 1),
                         'district_id' => $index === 0 ? $district->id : $dhaka->id,
                         'market_name' => $index === 0 ? 'Illustrative collection point' : 'Illustrative regional market',

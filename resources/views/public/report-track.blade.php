@@ -21,6 +21,9 @@
 
         @if(!empty($code))
             @if($report)
+                @if($report->is_demo)
+                <div class="alert alert-warning">Illustrative demo report; this is a synthetic example, not a real allegation or market observation.</div>
+                @endif
                 <div class="card shadow-sm border-top border-{{ $report->status === 'verified' ? 'success' : ($report->status === 'rejected' ? 'danger' : 'warning') }} border-4">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold font-monospace">{{ $report->tracking_code }}</h5>

@@ -72,7 +72,7 @@
                     <div class="col-6">
                         <div class="p-3 rounded border d-flex align-items-center justify-content-between" style="background: #f8fafc; border-color: var(--kb-border);">
                             <div>
-                                <div class="text-muted small mb-0">Verified Surveys</div>
+                                <div class="text-muted small mb-0">Reviewed surveys</div>
                                 <div class="fw-bold fs-4" style="color: var(--kb-warning);">{{ $stats['verified_observations'] }}</div>
                             </div>
                             <i class="bi bi-patch-check fs-3" style="color: var(--kb-warning);"></i>
@@ -88,6 +88,7 @@
     </div>
 </div>
 
+<section class="card card-body p-4 mb-5"><div class="row align-items-center g-3"><div class="col-md-9"><span class="badge bg-success-subtle text-success mb-2">PUBLIC ANALYTICS</span><h2 class="h3 fw-bold">Watch prices rise and fall</h2><p class="text-muted mb-0">Explore every crop’s daily price history, compare districts, and see which products are rising or falling with clear sample coverage.</p></div><div class="col-md-3"><a class="btn btn-primary w-100" href="{{ route('public.analytics') }}">Explore price analytics <i class="bi bi-arrow-right"></i></a></div></div></section>
 {{-- 4-Stage Pipeline --}}
 <div class="row g-4 mb-5">
     <div class="col-12">
@@ -108,7 +109,7 @@
                     <div>
                         <span class="small text-muted d-block mb-1" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Stage 1</span>
                         <h6 class="fw-bold mb-1" style="color: var(--kb-text);">Farm Gate</h6>
-                        <p class="small text-muted mb-0" style="font-size: 0.8125rem;">The grower registers harvested volume, date, origin GPS, and transparent baseline price per kg.</p>
+                        <p class="small text-muted mb-0" style="font-size: 0.8125rem;">Farmers enroll for a profile. Collectors record crop quantity and price with a private handwritten agreement.</p>
                     </div>
                 </div>
             </div>

@@ -3,6 +3,8 @@
 @section('title', 'Farmer Dashboard — KrishiByte')
 
 @section('content')
+@if(empty($marketBenchmarks))<div class="alert alert-info">No sufficient comparable market survey samples for {{ now('Asia/Dhaka')->toDateString() }} in your district. Historical, complaint and demo samples are excluded from this daily benchmark.</div>@endif
+<a href="{{ route('handoffs.index') }}" class="btn btn-outline-primary mb-3">Review handoff proposals</a>
 <div class="d-flex justify-content-end mb-3"><a class="btn btn-outline-primary" href="{{ route('farmer.handoff') }}">Transfer a harvest to a collector →</a></div>
 <div class="row g-3 mb-4 align-items-center">
     <div class="col-md-8">
@@ -83,7 +85,7 @@
                         <div class="p-3 rounded border d-flex align-items-center justify-content-between h-100" style="background: #f8fafc; border-color: var(--kb-border);">
                             <div>
                                 <div class="fw-semibold mb-1" style="color: var(--kb-text);">{{ $mb['crop'] }}</div>
-                                <small class="text-muted" style="font-size: 0.6875rem;">{{ $mb['samples'] }} verified surveys • {{ $mb['confidence'] }} confidence</small>
+                                <small class="text-muted" style="font-size: 0.6875rem;">{{ $mb['samples'] }} verified surveys • {{ str_replace('_',' ', $mb['sample_sufficiency']) }} sample sufficiency</small>
                             </div>
                             <div class="text-end">
                                 <div class="fw-bold" style="color: var(--kb-success); font-family: monospace; font-size: 1.1rem;">
@@ -257,12 +259,12 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label for="initial_farmer_price" class="form-label">Farm-Gate Price (BDT) <span class="text-danger">*</span></label>
+                            <label for="initial_farmer_price" class="form-label">Declared farm-gate asking price (BDT) <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text" style="background: #f8fafc;">৳</span>
                                 <input type="number" step="0.5" name="initial_farmer_price" id="initial_farmer_price" class="form-control" placeholder="e.g. 25.00" required>
                             </div>
-                            <small class="text-muted">Price per unit received by farmer.</small>
+                            <small class="text-muted">Declared asking price per unit; a completed sale requires acceptance.</small>
                         </div>
 
                         <div class="col-md-3">

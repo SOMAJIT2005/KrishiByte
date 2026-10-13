@@ -46,6 +46,24 @@ class PublicAndReportTest extends TestCase
     }
 
     /** AT-04: Guest opening protected dashboards gets redirected */
+    public function test_public_route_map_uses_district_centres_without_private_coordinates(): void
+    {
+        $batch = Batch::with(['originDistrict', 'transactions.district'])->where('verification_status', '!=', 'rejected')->firstOrFail();
+        $batch->update(['origin_latitude' => 24.1234567, 'origin_longitude' => 89.7654321]);
+        $response = $this->get(route('public.traceability.show', $batch->batch_code))->assertOk();
+        $points = $response->viewData('mapPoints');
+        $this->assertCount(1 + $batch->transactions->where('is_voided', false)->count(), $points);
+        $this->assertSame((float) $batch->originDistrict->latitude, $points[0]['lat']);
+        $this->assertSame((float) $batch->originDistrict->longitude, $points[0]['lng']);
+        $this->assertSame($batch->originDistrict->name, $points[0]['name']);
+        $response->assertDontSee('24.1234567')->assertDontSee('89.7654321');
+        foreach ($batch->transactions->where('is_voided', false)->values() as $index => $transaction) {
+            $this->assertSame((float) $transaction->district->latitude, $points[$index + 1]['lat']);
+        }
+        District::query()->update(['latitude' => null, 'longitude' => null]);
+        $this->get(route('public.traceability.show', $batch->batch_code))->assertOk()->assertViewHas('mapPoints', []);
+    }
+
     public function test_guest_opening_private_dashboards_redirected_to_login(): void
     {
         $this->get(route('farmer.dashboard'))->assertRedirect(route('login'));

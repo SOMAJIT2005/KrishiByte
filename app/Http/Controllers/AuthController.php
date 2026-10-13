@@ -30,6 +30,7 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+            $request->session()->passwordConfirmed();
             $user = Auth::user();
 
             if ($user->account_status !== 'active') {
@@ -59,7 +60,7 @@ class AuthController extends Controller
      */
     public function demoLogin(string $role)
     {
-        abort_unless(app()->environment('local'), 404);
+        abort_unless(app()->environment('local') && in_array(request()->getHost(), ['127.0.0.1', 'localhost', '::1'], true) && in_array(request()->ip(), ['127.0.0.1', '::1'], true), 404);
         $emailMap = [
             'admin' => 'admin@krishibyte.local',
             'authority' => 'authority@krishibyte.local',
@@ -123,6 +124,8 @@ class AuthController extends Controller
 
         abort_unless($user->account_status === 'active', 403);
         Auth::login($user);
+        $request->session()->regenerate();
+        $request->session()->passwordConfirmed();
 
         AuditLoggerService::log(
             action: 'USER_REGISTERED',
@@ -157,7 +160,7 @@ class AuthController extends Controller
         return match ($user->role) {
             'admin' => redirect()->route('admin.dashboard'),
             'authority' => redirect()->route('authority.dashboard'),
-            'farmer' => redirect()->route('farmer.dashboard'),
+            'farmer' => redirect()->route('farmers.show', $user->id),
             'collector', 'wholesale', 'retail' => redirect()->route('vendor.dashboard'),
             default => redirect()->route('public.prices'),
         };

@@ -6,9 +6,11 @@ use App\Models\Batch;
 use App\Models\Crop;
 use App\Models\District;
 use App\Models\MarkupRule;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BatchHandoffService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -17,9 +19,13 @@ class BatchAndHandoffTest extends TestCase
     use DatabaseTransactions;
 
     protected User $farmer;
+
     protected User $collector;
+
     protected User $wholesale;
+
     protected Crop $crop;
+
     protected District $district;
 
     protected function setUp(): void
@@ -31,6 +37,16 @@ class BatchAndHandoffTest extends TestCase
         $this->wholesale = User::where('role', 'wholesale')->first();
         $this->crop = Crop::first();
         $this->district = District::first();
+    }
+
+    private function acceptedHandoff(array $data)
+    {
+        $service = app(BatchHandoffService::class);
+        $proposal = $service->propose($data, (string) Str::uuid());
+        $counterparty = $data['recorded_by_user_id'] === $data['seller_id'] ? $data['buyer_id'] : $data['seller_id'];
+        $accepted = $service->decide($proposal->id, $counterparty, 'accepted');
+
+        return Transaction::findOrFail($accepted->transaction_id);
     }
 
     /** AT-05: Farmer creates valid batch */
@@ -93,7 +109,7 @@ class BatchAndHandoffTest extends TestCase
         ]);
 
         $service = app(BatchHandoffService::class);
-        $tx = $service->recordHandoff([
+        $tx = $this->acceptedHandoff([
             'batch_id' => $batch->id,
             'seller_id' => $this->farmer->id,
             'buyer_id' => $this->collector->id,
@@ -133,7 +149,7 @@ class BatchAndHandoffTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Seller is not the current custodian of this batch.");
+        $this->expectExceptionMessage('Seller is not the current custodian of this batch.');
 
         $service = app(BatchHandoffService::class);
         // Wholesale vendor tries to sell batch they do not hold!
@@ -168,7 +184,7 @@ class BatchAndHandoffTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("exceeds available batch quantity");
+        $this->expectExceptionMessage('exceeds available batch quantity');
 
         $service = app(BatchHandoffService::class);
         $service->recordHandoff([
@@ -202,7 +218,7 @@ class BatchAndHandoffTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Seller and buyer cannot be the same user.");
+        $this->expectExceptionMessage('Seller and buyer cannot be the same user.');
 
         $service = app(BatchHandoffService::class);
         $service->recordHandoff([
@@ -247,7 +263,7 @@ class BatchAndHandoffTest extends TestCase
 
         $service = app(BatchHandoffService::class);
         // 20.00 to 35.00 = 75% markup, which breaches 20% cap!
-        $tx = $service->recordHandoff([
+        $tx = $this->acceptedHandoff([
             'batch_id' => $batch->id,
             'seller_id' => $this->farmer->id,
             'buyer_id' => $this->collector->id,
@@ -286,7 +302,7 @@ class BatchAndHandoffTest extends TestCase
         ]);
 
         $service = app(BatchHandoffService::class);
-        $tx = $service->recordHandoff([
+        $tx = $this->acceptedHandoff([
             'batch_id' => $batch->id,
             'seller_id' => $this->farmer->id,
             'buyer_id' => $this->collector->id,
@@ -301,7 +317,7 @@ class BatchAndHandoffTest extends TestCase
         $this->assertEquals($this->collector->id, $batch->current_custodian_id);
 
         // Now void transaction
-        $service->voidTransaction($tx->id, $this->collector->id, "Clerical weight error");
+        $service->voidTransaction($tx->id, $this->collector->id, 'Clerical weight error');
 
         $tx->refresh();
         $batch->refresh();

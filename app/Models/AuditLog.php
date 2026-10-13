@@ -12,6 +12,12 @@ class AuditLog extends Model
 
     public $timestamps = false;
 
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new \LogicException('Audit entries are append-only through the application.'));
+        static::deleting(fn () => throw new \LogicException('Audit entries cannot be deleted through the application.'));
+    }
+
     protected $fillable = [
         'user_id',
         'action',

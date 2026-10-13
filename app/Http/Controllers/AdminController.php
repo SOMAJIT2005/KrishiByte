@@ -30,6 +30,8 @@ class AdminController extends Controller
         abort_unless(in_array($user->role, ['farmer', 'collector', 'wholesale', 'retail']), 422);
         abort_if($data['verified'] && $user->account_status !== 'active', 422, 'Activate this account first.');
         DB::transaction(function () use ($user, $data) {
+            $user = User::lockForUpdate()->findOrFail($user->id);
+            abort_if($data['verified'] && $user->account_status !== 'active', 422, 'Activate this account first.');
             $before = ['is_verified' => $user->is_verified];
             $user->update(['is_verified' => $data['verified'], 'verified_by_user_id' => Auth::id(), 'verification_date' => now(), 'verification_reason' => $data['reason']]);
             AuditLoggerService::log(action: 'USER_VERIFICATION_UPDATED', targetType: 'User', targetId: $user->id, notes: $data['reason'], before: $before, after: ['is_verified' => $user->is_verified], userId: Auth::id());
@@ -38,26 +40,19 @@ class AdminController extends Controller
         return back()->with('success', 'Account verification updated.');
     }
 
-    public function toggleUserStatus(int $id)
+    public function toggleUserStatus(Request $request, int $id)
     {
-        $user = User::findOrFail($id);
+        $validated = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:500']]);
+        abort_if($id === Auth::id(), 422, 'You cannot suspend your own admin account.');
+        DB::transaction(function () use ($id, $validated) {
+            $user = User::lockForUpdate()->findOrFail($id);
+            $before = $user->account_status;
+            $status = $before === 'active' ? 'suspended' : 'active';
+            $user->update(['account_status' => $status]);
+            AuditLoggerService::log(action: 'USER_STATUS_TOGGLED', targetType: 'User', targetId: $id, notes: $validated['reason'], before: ['account_status' => $before], after: ['account_status' => $status], userId: Auth::id());
+        });
 
-        if ($user->id === Auth::id()) {
-            return redirect()->back()->with('error', 'You cannot suspend your own admin account.');
-        }
-
-        $newStatus = ($user->account_status === 'active') ? 'suspended' : 'active';
-        $user->update(['account_status' => $newStatus]);
-
-        AuditLoggerService::log(
-            action: 'USER_STATUS_TOGGLED',
-            targetType: 'User',
-            targetId: $user->id,
-            notes: "Admin set account status of {$user->email} to {$newStatus}",
-            userId: Auth::id()
-        );
-
-        return redirect()->back()->with('success', "Account {$user->email} is now {$newStatus}.");
+        return back()->with('success', 'Account status updated.');
     }
 
     public function storeRule(Request $request)
@@ -65,44 +60,54 @@ class AdminController extends Controller
         $validated = $request->validate([
             'crop_id' => ['nullable', 'exists:crops,id'],
             'stage' => ['required', 'in:all,farmer_to_collector,collector_to_collector,collector_to_wholesale,collector_to_retail,wholesale_to_collector,wholesale_to_wholesale,wholesale_to_retail,retail_sale'],
-            'max_markup_percent' => ['required', 'numeric', 'min:1', 'max:500'],
-            'max_spread_amount' => ['nullable', 'numeric', 'min:0'],
+            'max_markup_percent' => ['required', 'numeric', 'decimal:0,2', 'min:1', 'max:500'],
+            'max_spread_amount' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:100000'],
             'explanation' => ['required', 'string', 'max:500'],
+            'effective_from' => ['nullable', 'date_format:Y-m-d'],
+            'effective_to' => ['nullable', 'date_format:Y-m-d', ...($request->filled('effective_from') ? ['after_or_equal:effective_from'] : [])],
         ]);
 
-        $rule = MarkupRule::create([
-            'crop_id' => $validated['crop_id'] ?: null,
-            'stage' => $validated['stage'],
-            'max_markup_percent' => $validated['max_markup_percent'],
-            'max_spread_amount' => $validated['max_spread_amount'] ?: null,
-            'is_active' => true,
-            'created_by_user_id' => Auth::id(),
-            'explanation' => $validated['explanation'],
-        ]);
+        DB::transaction(function () use ($validated) {
+            $rule = MarkupRule::create([
+                'crop_id' => $validated['crop_id'] ?? null,
+                'stage' => $validated['stage'],
+                'max_markup_percent' => $validated['max_markup_percent'],
+                'max_spread_amount' => $validated['max_spread_amount'] ?? null,
+                'is_active' => true,
+                'created_by_user_id' => Auth::id(),
+                'explanation' => $validated['explanation'],
+                'effective_from' => $validated['effective_from'] ?? null,
+                'effective_to' => $validated['effective_to'] ?? null,
+            ]);
 
-        AuditLoggerService::log(
-            action: 'MARKUP_RULE_CREATED',
-            targetType: 'MarkupRule',
-            targetId: $rule->id,
-            notes: "Created markup rule: max {$rule->max_markup_percent}% for stage {$rule->stage}",
-            userId: Auth::id()
-        );
+            AuditLoggerService::log(
+                action: 'MARKUP_RULE_CREATED',
+                targetType: 'MarkupRule',
+                targetId: $rule->id,
+                notes: "Created markup rule: max {$rule->max_markup_percent}% for stage {$rule->stage}",
+                userId: Auth::id()
+            );
+
+        });
 
         return redirect()->back()->with('success', 'Markup threshold rule added successfully.');
     }
 
     public function toggleRule(int $id)
     {
-        $rule = MarkupRule::findOrFail($id);
-        $rule->update(['is_active' => ! $rule->is_active]);
+        DB::transaction(function () use ($id) {
+            $rule = MarkupRule::lockForUpdate()->findOrFail($id);
+            $rule->update(['is_active' => ! $rule->is_active]);
 
-        AuditLoggerService::log(
-            action: 'MARKUP_RULE_TOGGLED',
-            targetType: 'MarkupRule',
-            targetId: $rule->id,
-            notes: "Markup rule #{$rule->id} active state toggled to ".($rule->is_active ? 'active' : 'inactive'),
-            userId: Auth::id()
-        );
+            AuditLoggerService::log(
+                action: 'MARKUP_RULE_TOGGLED',
+                targetType: 'MarkupRule',
+                targetId: $rule->id,
+                notes: "Markup rule #{$rule->id} active state toggled to ".($rule->is_active ? 'active' : 'inactive'),
+                userId: Auth::id()
+            );
+
+        });
 
         return redirect()->back()->with('success', 'Rule state updated.');
     }

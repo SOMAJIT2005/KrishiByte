@@ -16,14 +16,14 @@ class SmsService
         $logEntry = sprintf(
             "[%s] DUMMY SMS to %s: %s\n",
             now()->format('Y-m-d H:i:s'),
-            $phone,
+            '***'.substr($phone, -4),
             $message
         );
 
         $smsLogPath = storage_path('logs/sms.log');
         file_put_contents($smsLogPath, $logEntry, FILE_APPEND | LOCK_EX);
 
-        Log::info("Dummy SMS logged to {$phone}: {$message}");
+        Log::info('Mock SMS event recorded after commit.');
 
         return true;
     }

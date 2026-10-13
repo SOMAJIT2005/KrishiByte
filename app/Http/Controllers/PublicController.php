@@ -7,10 +7,12 @@ use App\Models\Crop;
 use App\Models\District;
 use App\Models\PriceObservation;
 use App\Models\PriceReport;
-use App\Services\CalculationService;
+use App\Services\EvidenceService;
+use App\Services\PriceReferenceService;
+use App\Services\PublicAnalyticsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PublicController extends Controller
 {
@@ -29,7 +31,7 @@ class PublicController extends Controller
             'total_batches' => Batch::count(),
             'tracked_crops' => Crop::where('is_active', true)->count(),
             'monitored_districts' => District::count(),
-            'verified_observations' => PriceObservation::where('verification_status', 'verified')->count(),
+            'verified_observations' => PriceObservation::where('verification_status', 'verified')->where('is_demo', false)->where('source', 'verified_market_survey')->count(),
         ];
 
         return view('public.index', compact('crops', 'districts', 'recentBatches', 'stats'));
@@ -37,35 +39,18 @@ class PublicController extends Controller
 
     public function prices(Request $request)
     {
-        $request->validate(['crop_id' => ['nullable', 'exists:crops,id'], 'district_id' => ['nullable', 'exists:districts,id'], 'date' => ['nullable', 'date']]);
+        $request->validate(['crop_id' => ['nullable', 'exists:crops,id'], 'district_id' => ['nullable', 'exists:districts,id'], 'date' => ['nullable', 'date_format:Y-m-d'], 'source' => ['nullable', 'in:survey,reports,demo']]);
         $crops = Crop::where('is_active', true)->orderBy('name')->get();
         $districts = District::orderBy('name')->get();
 
         $selectedCropId = $request->input('crop_id', $crops->first()?->id);
         $selectedDistrictId = $request->input('district_id');
-        $selectedDate = $request->input('date', now()->toDateString());
+        $selectedDate = $request->input('date', now('Asia/Dhaka')->toDateString());
 
-        $query = PriceObservation::with(['crop', 'district'])
-            ->where('verification_status', 'verified');
-
-        if ($selectedCropId) {
-            $query->where('crop_id', $selectedCropId);
-            $query->where('unit', $crops->firstWhere('id', $selectedCropId)?->unit);
-        }
-
-        if ($selectedDistrictId) {
-            $query->where('district_id', $selectedDistrictId);
-        }
-
-        if ($selectedDate) {
-            $query->whereDate('observation_date', '<=', $selectedDate);
-        }
-
-        $observations = $query->latest('observation_date')->paginate(15)->withQueryString();
-
-        // Calculate indicative reference price using robust statistics
-        $priceValues = (clone $query)->pluck('observed_retail_price')->map(fn ($p) => (float) $p)->toArray();
-        $referenceStats = CalculationService::calculateReferencePrice($priceValues);
+        $selectedSource = $request->input('source', 'survey');
+        $query = PriceReferenceService::query((int) $selectedCropId, $crops->firstWhere('id', $selectedCropId)?->unit ?? 'kg', $selectedDistrictId ? (int) $selectedDistrictId : null, $selectedDate, $selectedSource);
+        $observations = (clone $query)->with(['crop', 'district'])->latest('observation_date')->paginate(15)->withQueryString();
+        $referenceStats = PriceReferenceService::stats($query);
 
         $selectedCrop = $crops->firstWhere('id', $selectedCropId);
         $selectedDistrict = $districts->firstWhere('id', $selectedDistrictId);
@@ -76,11 +61,31 @@ class PublicController extends Controller
             'observations',
             'selectedCropId',
             'selectedDistrictId',
-            'selectedDate',
+            'selectedDate', 'selectedSource',
             'referenceStats',
             'selectedCrop',
             'selectedDistrict'
         ));
+    }
+
+    public function analytics(Request $request)
+    {
+        $filters = $request->validate(['crop_id' => ['nullable', 'exists:crops,id'], 'district_id' => ['nullable', 'exists:districts,id'], 'source' => ['nullable', 'in:survey,reports,demo'], 'days' => ['nullable', 'in:7,14,30'], 'end_date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Dhaka')->toDateString()]]);
+        $crops = Crop::where('is_active', true)->where('unit_needs_review', false)->orderBy('name')->get();
+        $districts = District::orderBy('name')->get();
+        $source = $filters['source'] ?? (app()->environment('local') ? 'demo' : 'survey');
+        $days = (int) ($filters['days'] ?? 14);
+        $endDate = $filters['end_date'] ?? now('Asia/Dhaka')->toDateString();
+        $districtId = ! empty($filters['district_id']) ? (int) $filters['district_id'] : null;
+        $products = PublicAnalyticsService::products($crops, $districtId, $source, $endDate, $days);
+        $selected = $products->first(fn ($product) => $product['crop']->id == ($filters['crop_id'] ?? null))
+            ?? $products->first(fn ($product) => $product['change'] !== null && $product['change'] != 0)
+            ?? $products->first(fn ($product) => $product['latest'] !== null)
+            ?? $products->first();
+        $rising = $products->where('trend', 'Rising')->sortByDesc('change');
+        $falling = $products->where('trend', 'Falling')->sortBy('change');
+
+        return view('public.analytics', compact('crops', 'districts', 'source', 'days', 'endDate', 'districtId', 'products', 'selected', 'rising', 'falling'));
     }
 
     public function traceability(Request $request)
@@ -114,29 +119,24 @@ class PublicController extends Controller
             },
         ])->where('status', '!=', 'voided')->where('verification_status', '!=', 'rejected')->where('batch_code', $batch_code)->firstOrFail();
 
-        // Prepare map coordinates trail
-        $mapPoints = [];
-        if ($batch->origin_latitude && $batch->origin_longitude) {
-            $mapPoints[] = [
-                'name' => 'Farm Origin: '.($batch->farm_location_name ?: $batch->originDistrict->name),
-                'stage' => 'Farm Gate',
-                'lat' => (float) $batch->origin_latitude,
-                'lng' => (float) $batch->origin_longitude,
-                'price' => (float) $batch->initial_farmer_price,
-            ];
-        }
-
-        foreach ($batch->transactions as $tx) {
-            if ($tx->latitude && $tx->longitude) {
-                $mapPoints[] = [
-                    'name' => ($tx->market_name ?: $tx->district->name).' ('.ucwords(str_replace('_', ' ', $tx->stage)).')',
-                    'stage' => ucwords(str_replace('_', ' ', $tx->stage)),
-                    'lat' => (float) $tx->latitude,
-                    'lng' => (float) $tx->longitude,
-                    'price' => (float) $tx->price_per_unit,
-                ];
-            }
-        }
+        // Public locations are district-level only; precise farm/transaction GPS stays private.
+        $mapPoints = collect([[
+            'district' => $batch->originDistrict,
+            'stage' => 'Farm gate',
+            'price' => $batch->initial_farmer_price,
+        ]])->concat($batch->transactions->map(fn ($tx) => [
+            'district' => $tx->district,
+            'stage' => 'Step '.$tx->sequence_no.' · '.ucwords(str_replace('_', ' ', $tx->stage)),
+            'price' => $tx->price_per_unit,
+        ]))->filter(fn ($point) => is_numeric($point['district']?->latitude)
+            && is_numeric($point['district']?->longitude))
+            ->map(fn ($point) => [
+                'lat' => (float) $point['district']->latitude,
+                'lng' => (float) $point['district']->longitude,
+                'name' => $point['district']->name,
+                'stage' => $point['stage'],
+                'price' => $point['price'],
+            ])->values()->all();
 
         return view('public.traceability-show', compact('batch', 'mapPoints'));
     }
@@ -159,7 +159,7 @@ class PublicController extends Controller
             'district_id' => ['required', 'exists:districts,id'],
             'market_name' => ['required', 'string', 'max:255'],
             'reported_price' => ['nullable', 'required_if:category,price', 'numeric', 'min:0.01', 'max:10000'],
-            'unit' => ['required', 'string', 'max:20'],
+            'unit' => ['required', 'in:kg,mon,sack,piece'],
             'incident_date' => ['required', 'date', 'before_or_equal:today'],
             'report_narrative' => ['required', 'string', 'min:10', 'max:2000'],
             'reporter_name' => ['nullable', 'string', 'max:100'],
@@ -181,40 +181,47 @@ class PublicController extends Controller
         if ($duplicate) {
             return redirect()->route('public.report.track', ['code' => $duplicate->tracking_code])->with('info', 'This report has already been received.');
         }
-        $evidencePath = null;
-        $evidenceMime = null;
-
+        $evidence = [];
         if ($request->hasFile('evidence_photo')) {
-            $file = $request->file('evidence_photo');
-            $safeName = 'report_'.Str::random(24).'.'.$file->extension();
-            $evidencePath = $file->storeAs('evidence', $safeName, 'local');
-            $evidenceMime = $file->getMimeType();
+            $quota = PriceReport::whereNotNull('evidence_path')->where('created_at', '>=', now()->subDay());
+            $quota->where($request->user() ? 'reporter_user_id' : 'ip_address', $request->user()?->id ?? $request->ip());
+            if ($quota->count() >= ($request->user() ? 10 : 2)) {
+                throw ValidationException::withMessages(['evidence_photo' => 'Daily evidence upload quota reached.']);
+            }
+            $evidence = EvidenceService::store($request->file('evidence_photo'));
         }
 
         $trackingCode = PriceReport::generateTrackingCode();
 
-        $report = PriceReport::create([
-            'tracking_code' => $trackingCode,
-            'reporter_user_id' => $request->user()?->id,
-            'category' => $validated['category'] ?? 'price',
-            'batch_id' => ! empty($validated['batch_code']) ? Batch::where('batch_code', $validated['batch_code'])->value('id') : null,
-            'reporter_name' => $validated['reporter_name'] ?? null,
-            'reporter_phone' => $validated['reporter_phone'] ?? null,
-            'reporter_email' => $validated['reporter_email'] ?? null,
-            'crop_id' => $validated['crop_id'],
-            'district_id' => $validated['district_id'],
-            'market_name' => $validated['market_name'],
-            'reported_price' => $validated['reported_price'] ?? null,
-            'unit' => $validated['unit'],
-            'report_narrative' => $validated['report_narrative'],
-            'incident_date' => $validated['incident_date'],
-            'latitude' => $validated['latitude'] ?? null,
-            'longitude' => $validated['longitude'] ?? null,
-            'evidence_path' => $evidencePath,
-            'evidence_mime' => $evidenceMime,
-            'status' => 'pending',
-            'ip_address' => $request->ip(),
-        ]);
+        try {
+            $report = PriceReport::create([
+                'tracking_code' => $trackingCode,
+                'reporter_user_id' => $request->user()?->id,
+                'category' => $validated['category'] ?? 'price',
+                'batch_id' => ! empty($validated['batch_code']) ? Batch::where('batch_code', $validated['batch_code'])->value('id') : null,
+                'reporter_name' => $validated['reporter_name'] ?? null,
+                'reporter_phone' => $validated['reporter_phone'] ?? null,
+                'reporter_email' => $validated['reporter_email'] ?? null,
+                'crop_id' => $validated['crop_id'],
+                'district_id' => $validated['district_id'],
+                'market_name' => $validated['market_name'],
+                'reported_price' => $validated['reported_price'] ?? null,
+                'unit' => $validated['unit'],
+                'report_narrative' => $validated['report_narrative'],
+                'incident_date' => $validated['incident_date'],
+                'latitude' => $validated['latitude'] ?? null,
+                'longitude' => $validated['longitude'] ?? null,
+                ...$evidence,
+                'status' => 'pending',
+                'ip_address' => $request->ip(),
+            ]);
+
+        } catch (\Throwable $e) {
+            if (isset($evidence['evidence_path'])) {
+                Storage::disk('local')->delete($evidence['evidence_path']);
+            }
+            throw $e;
+        }
 
         return redirect()->route('public.report.track', ['code' => $trackingCode])
             ->with('success', "Report submitted successfully! Your tracking code is: {$trackingCode}. Our market monitoring desk will review this entry.");

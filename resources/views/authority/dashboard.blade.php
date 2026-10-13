@@ -256,6 +256,9 @@
                         <tr>
                             <td>
                                 <code class="fw-bold" style="color: var(--kb-text); font-family: monospace;">{{ $rpt->tracking_code }} <small class="d-block text-muted">{{ ucfirst($rpt->category) }}</small></code>
+                                @if($rpt->is_demo)
+                                <span class="badge bg-warning text-dark">Illustrative demo</span>
+                                @endif
                             </td>
                             <td>
                                 <strong>{{ $rpt->crop->name }}</strong>
@@ -406,7 +409,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const ctx = document.getElementById('stagePriceChart');
-        if (ctx) {
+        if (ctx && typeof Chart !== 'undefined') {
             new Chart(ctx, {
                 type: 'bar',
                 data: {
