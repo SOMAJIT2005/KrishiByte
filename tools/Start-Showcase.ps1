@@ -9,7 +9,7 @@ try {
     if (!$phpBinary) { throw 'PHP was not found. Start Wampserver or add PHP to PATH.' }
     $mysqlProbe = New-Object Net.Sockets.TcpClient
     try { $mysqlProbe.Connect('127.0.0.1',3306) } catch { throw 'MySQL is unavailable. Start Wampserver, then run this file again.' } finally { $mysqlProbe.Dispose() }
-    $url = "http://127.0.0.1:$Port/demo-showcase"
+    $url = "http://127.0.0.1:$Port/"
     $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
     if (!$listener) {
         $logsDirectory = Join-Path $projectDirectory 'storage\logs'
@@ -20,12 +20,12 @@ try {
     for ($attempt=0; $attempt -lt 20; $attempt++) {
         try {
             $page = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
-            if ($page.Content -notmatch 'KrishiByte showcase') { throw "Port $Port is serving another application." }
+            if ($page.Content -notmatch 'KrishiByte') { throw "Port $Port is serving another application." }
             $ready = $true; break
         } catch { if ($listener) { throw }; Start-Sleep -Milliseconds 300 }
     }
-    if (!$ready) { throw "The showcase did not start. Check storage\logs\showcase-server-errors-$Port.log and your local .env database settings." }
-    Write-Host "KrishiByte showcase is ready: $url" -ForegroundColor Green
+    if (!$ready) { throw "The website did not start. Check storage\logs\showcase-server-errors-$Port.log and your local .env database settings." }
+    Write-Host "KrishiByte website is ready: $url" -ForegroundColor Green
     if (!$NoBrowser) { Start-Process $url }
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red

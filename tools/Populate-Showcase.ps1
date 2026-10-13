@@ -6,7 +6,7 @@ try {
     if (!$phpBinary) { throw 'PHP was not found. Start Wampserver or add PHP to PATH.' }
     Push-Location $projectDirectory
     try {
-        & $phpBinary artisan showcase:populate
+        & $phpBinary artisan manual:populate
         if ($LASTEXITCODE -ne 0) { throw 'Demo population failed. Check local database settings and migrations.' }
         & $phpBinary tools/create-demo-agreement.php
         if ($LASTEXITCODE -ne 0) { throw 'Demo upload fixture generation failed.' }

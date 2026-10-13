@@ -605,8 +605,8 @@
                         Transparent agricultural supply chain tracking and fair-margin intelligence for Bangladesh. Connecting growers, aggregators, arats, and retailers with auditable batch journeys.
                     </p>
                     <div class="d-flex flex-wrap gap-2 mb-2">
-                        <span class="badge bg-secondary border-0">@if(app()->environment('local'))<a href="{{ route('demo.showcase') }}">Local showcase</a>@endif Transparent provenance</span>
-                        <span class="badge bg-dark border border-secondary text-warning">Illustrative demo data</span>
+                        <span class="badge bg-secondary border-0">Transparent provenance</span>
+                        <span class="badge bg-dark border border-secondary">Recorded custody and prices</span>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -634,7 +634,7 @@
     </footer>
 
     <!-- Bootstrap 5 JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="{{ asset('assets/bootstrap/bootstrap.bundle.min.js') }}?v=5.3.3" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <!-- Chart.js -->

@@ -4,6 +4,7 @@ use App\Models\Batch;
 use App\Models\PriceObservation;
 use App\Models\PriceReport;
 use Database\Seeders\DemoPriceHistorySeeder;
+use Database\Seeders\ManualTestingSeeder;
 use Database\Seeders\MarketplaceShowcaseSeeder;
 use Database\Seeders\ShowcaseScenarioSeeder;
 use Illuminate\Foundation\Inspiring;
@@ -31,8 +32,20 @@ Artisan::command('showcase:populate', function () {
         ['Analytics samples', PriceObservation::where('market_name', 'like', 'Illustrative % analytics sample %')->count()],
         ['Report examples', PriceReport::where('tracking_code', 'like', 'RPT-DEMO-%')->count()],
     ]);
-    $this->info('Open http://127.0.0.1:8000/demo-showcase and follow the role walkthrough.');
+    $this->info('Open http://127.0.0.1:8000/login and use the synthetic accounts documented in docs/MANUAL_TESTING.md.');
 })->purpose('Populate clearly labeled local demo prices and workflow scenarios without resetting data');
+
+Artisan::command('manual:populate', function () {
+    if (! app()->environment(['local', 'testing'])) {
+        $this->error('Manual test data is only allowed in local/test environments.');
+
+        return 1;
+    }
+    if ($this->call('db:seed', ['--class' => ManualTestingSeeder::class, '--force' => true]) !== 0) {
+        return 1;
+    }
+    $this->info('Synthetic manual-testing fixtures added. Sign in normally; see docs/MANUAL_TESTING.md.');
+})->purpose('Add non-destructive synthetic manual-testing coverage to every database table');
 
 Artisan::command('reports:secure-evidence', function () {
     $moved = 0;

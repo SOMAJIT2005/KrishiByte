@@ -11,7 +11,6 @@ use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\PublicController;
 use App\Http\Controllers\VendorController;
-use App\Models\Batch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
@@ -50,13 +49,6 @@ Route::middleware('role:admin,authority,farmer,collector,wholesale,retail,consum
 });
 Route::get('/report/track', [PublicController::class, 'trackReport'])->middleware('throttle:tracking')->name('public.report.track');
 Route::get('/faq', [PublicController::class, 'faq'])->name('public.faq');
-Route::get('/demo-showcase', function () {
-    abort_unless(app()->environment('local') && in_array(request()->getHost(), ['127.0.0.1', 'localhost', '::1'], true) && in_array(request()->ip(), ['127.0.0.1', '::1'], true), 404);
-
-    $demoBatches = Batch::with('crop')->where('batch_code', 'like', 'KB-DEMO-%')->orderBy('batch_code')->get();
-
-    return view('public.showcase', compact('demoBatches'));
-})->name('demo.showcase');
 
 /*
 |--------------------------------------------------------------------------
@@ -65,7 +57,6 @@ Route::get('/demo-showcase', function () {
 */
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('login.post');
-Route::post('/demo-login/{role}', [AuthController::class, 'demoLogin'])->middleware('throttle:demo')->name('demo.login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:registration')->name('register.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

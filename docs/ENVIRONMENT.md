@@ -34,6 +34,6 @@ New report attachments use the private Laravel local disk. To migrate legacy pub
 
 `.env` was previously tracked. It is now removed from the Git index and ignored while the local file remains intact. Old Git history still contains the earlier file: rotate any real credentials and clean history before sharing the repository publicly. No history rewrite was performed.
 
-The local-only demo login shortcuts use illustrative accounts and CSRF-protected POST; loopback host/client are required. NID/trade identifiers are encrypted with the existing APP_KEY. Preserve the matching key with backup restores: do not regenerate it against an existing database. SMS remains a mock adapter. Actual production hosting, least-privilege credentials, MFA, storage monitoring and an SMS provider require deployment-specific work; see SECURITY_REVIEW.md.
+The showcase page and local role-login shortcuts are removed; normal password-based sign-in is required. Synthetic fixture population remains CLI-only and local/test restricted. NID/trade identifiers are encrypted with the existing APP_KEY. Preserve the matching key with backup restores: do not regenerate it against an existing database. SMS remains a mock adapter. Actual production hosting, least-privilege credentials, MFA, storage monitoring and an SMS provider require deployment-specific work; see SECURITY_REVIEW.md.
 
 Original source/document backups are at `D:\KrishiByte-backup-20261012`. No application database reset or public deployment was performed.

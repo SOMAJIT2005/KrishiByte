@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\District;
 use App\Models\Marketplace;
 use App\Models\RetailPrice;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AuditLoggerService;
 use Illuminate\Http\Request;
@@ -35,9 +36,11 @@ class MarketController extends Controller
     {
         $retailer = auth()->user();
         $batches = Batch::with(['crop', 'originDistrict'])->where('current_custodian_id', $retailer->id)->where('status', 'active')->where('verification_status', '!=', 'rejected')->get();
-        $history = RetailPrice::with('batch.crop')->where('retailer_id', $retailer->id)->latest()->paginate(15);
+        $history = RetailPrice::with('batch.crop')->where('retailer_id', $retailer->id)->latest()->paginate(15)->withQueryString();
+        $receipts = Transaction::with(['batch.crop', 'seller'])->where('buyer_id', $retailer->id)
+            ->latest('transaction_date')->latest('id')->paginate(10, ['*'], 'receipts_page')->withQueryString();
 
-        return view('vendor.retail-prices', compact('retailer', 'batches', 'history'));
+        return view('vendor.retail-prices', compact('retailer', 'batches', 'history', 'receipts'));
     }
 
     public function recordPrice(Request $request)

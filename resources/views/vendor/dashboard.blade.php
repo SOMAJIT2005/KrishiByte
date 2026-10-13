@@ -7,6 +7,9 @@
 <form method="GET" class="card card-body mb-3"><div class="row g-3 align-items-end"><div class="col-md-3"><label for="buyer_district_id" class="form-label">1. Recipient district</label><select id="buyer_district_id" name="buyer_district_id" class="form-select" required><option value="">-- Select district first --</option>@foreach($districts as $district)<option value="{{ $district->id }}" @selected($buyerDistrictId == $district->id)>{{ $district->name }}</option>@endforeach</select></div><div class="col-md-3"><label for="buyer_role" class="form-label">2. Recipient role</label><select id="buyer_role" name="buyer_role" class="form-select">@foreach($roles as $role)<option value="{{ $role }}" @selected($buyerRole === $role)>{{ $role === 'retail' ? 'Retail shops' : ($role === 'wholesale' ? 'Wholesalers' : ucfirst($role).'s') }}</option>@endforeach</select></div><div class="col-md-4"><label for="buyer_search" class="form-label">Recipient or shop name</label><input id="buyer_search" name="buyer_search" class="form-control" value="{{ request('buyer_search') }}" placeholder="Search listed accounts or shops" maxlength="100"></div><div class="col-md-2"><button class="btn btn-outline-primary w-100">Find recipient</button></div></div><p class="small text-muted mt-2 mb-0">Choose a district, then a role to find its active, approved registered accounts. Up to 50 matches; narrow by name when needed.</p></form>
 <a href="{{ route('handoffs.index') }}" class="btn btn-outline-primary mb-3">Review handoff proposals</a>
 @if($buyerDistrictId)<p class="small {{ $eligibleBuyers->isEmpty() ? 'text-danger' : 'text-muted' }}">{{ $eligibleBuyers->count() }} matching {{ $buyerRole === 'retail' ? 'retail shops' : ($buyerRole === 'wholesale' ? 'wholesalers' : 'collectors') }} in {{ $districts->firstWhere('id',$buyerDistrictId)?->name }}. @if($eligibleBuyers->isEmpty())Try another district, role or name.@endif</p>@endif
+@if(!$buyerDistrictId || $eligibleBuyers->isEmpty())
+<div class="alert alert-info" role="status">Handoff buttons become available after you choose a recipient district and role, then press <strong>Find recipient</strong> to find an approved registered buyer. @if($buyerDistrictId && $eligibleBuyers->isEmpty())No buyer matches these filters; clear the name search or choose another district or role.@endif</div>
+@endif
 @if($user->isCollector())
 <div class="card card-body mb-4"><h2 class="h5">Collect from a farmer</h2><p>Enter the agreed quantity and price, upload the handwritten agreement, and collect the lot without a farmer login.</p><a href="{{ route('vendor.farm-purchase') }}" class="btn btn-primary align-self-start mb-3">Record farmer purchase</a>
 @forelse($collectionBatches as $lot)
@@ -58,7 +61,7 @@
         <div class="kpi-card border-success bg-success-kpi">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="kpi-label">Outgoing Sales</div>
+                    <div class="kpi-label">Recorded dispatches</div>
                     <div class="kpi-value" style="color: var(--kb-success);">{{ $stats['total_sales'] }}</div>
                 </div>
                 <div class="kpi-icon">
@@ -71,7 +74,7 @@
         <div class="kpi-card border-primary bg-primary-kpi">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="kpi-label">Incoming Purchases</div>
+                    <div class="kpi-label">Recorded receipts</div>
                     <div class="kpi-value" style="color: var(--kb-primary-light);">{{ $stats['total_purchases'] }}</div>
                 </div>
                 <div class="kpi-icon">
@@ -189,6 +192,7 @@
 </div>
 
 {{-- Transaction History --}}
+<p class="small text-muted">Movement status follows recorded custody transfers: the sender sees Dispatched and the recipient sees Received after acceptance. Farmer purchases show Received from farmer (collector attested). Unconfirmed older records and voided transfers are labelled separately. Pending proposals do not move custody.</p>
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div>
@@ -208,7 +212,6 @@
                     <tr>
                         <th>Date</th>
                         <th>Batch</th>
-                        <th>Direction</th>
                         <th>Counterparty</th>
                         <th>Stage</th>
                         <th>Qty</th>
@@ -227,17 +230,6 @@
                                 <a href="{{ route('public.traceability.show', $tx->batch->batch_code) }}" class="font-monospace text-decoration-none" style="font-size: 0.8125rem; color: var(--kb-primary-light);">
                                     {{ $tx->batch->batch_code }}
                                 </a>
-                            </td>
-                            <td>
-                                @if($tx->seller_id === auth()->id())
-                                    <span class="badge bg-success bg-opacity-10 text-success border-0 d-inline-flex align-items-center" style="font-size: 0.6875rem;">
-                                        <i class="bi bi-arrow-right me-1"></i> Outgoing
-                                    </span>
-                                @else
-                                    <span class="badge bg-primary bg-opacity-10 text-primary border-0 d-inline-flex align-items-center" style="font-size: 0.6875rem;">
-                                        <i class="bi bi-arrow-left me-1"></i> Incoming
-                                    </span>
-                                @endif
                             </td>
                             <td>
                                 @if($tx->seller_id === auth()->id())
@@ -275,18 +267,9 @@
                                 @endif
                             </td>
                             <td>
-                                @if($tx->is_voided)
-                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle d-inline-flex align-items-center">
-                                        <i class="bi bi-x-circle me-1"></i> Voided
-                                    </span>
-                                @elseif($tx->validation_status === 'flagged')
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-inline-flex align-items-center">
-                                        <i class="bi bi-flag-fill me-1"></i> Flagged
-                                    </span>
-                                @else
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center">
-                                        <i class="bi bi-check-circle me-1"></i> Valid
-                                    </span>
+                                <x-movement-status :transaction="$tx" :participant="$user" />
+                                @if(!$tx->is_voided && $tx->validation_status === 'flagged')
+                                    <div class="small text-danger mt-1"><i class="bi bi-flag-fill me-1" aria-hidden="true"></i>Flagged for review</div>
                                 @endif
                             </td>
                             <td class="text-end">
@@ -299,7 +282,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11">
+                            <td colspan="10">
                                 <div class="empty-state">
                                     <i class="bi bi-inbox d-block"></i>
                                     <p class="mb-0">No transaction history found.</p>

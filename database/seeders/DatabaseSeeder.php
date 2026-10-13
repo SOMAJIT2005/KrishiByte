@@ -11,6 +11,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('Synthetic database seeds are restricted to local/test environments.');
+        }
         $this->call([
             DistrictSeeder::class,
             CropSeeder::class,

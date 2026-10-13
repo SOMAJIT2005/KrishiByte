@@ -4,8 +4,8 @@
 if (PHP_SAPI !== 'cli' || getenv('DB_DATABASE') !== 'krishibyte_test') {
     exit("Set DB_DATABASE=krishibyte_test first.\n");
 }
-require __DIR__.'/../vendor/autoload.php';
-$app = require __DIR__.'/../bootstrap/app.php';
+require __DIR__.'/../../vendor/autoload.php';
+$app = require __DIR__.'/../../bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 use App\Models\Batch;
 use App\Models\Crop;

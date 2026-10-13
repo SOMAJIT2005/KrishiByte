@@ -57,39 +57,6 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * 1-Click Demo Login for fast local testing and evaluator review
-     */
-    public function demoLogin(string $role)
-    {
-        abort_unless(app()->environment('local') && in_array(request()->getHost(), ['127.0.0.1', 'localhost', '::1'], true) && in_array(request()->ip(), ['127.0.0.1', '::1'], true), 404);
-        $emailMap = [
-            'admin' => 'admin@krishibyte.local',
-            'authority' => 'authority@krishibyte.local',
-            'farmer' => 'farmer.rahim@krishibyte.local',
-            'collector' => 'collector.karim@krishibyte.local',
-            'wholesale' => 'wholesale.hasan@krishibyte.local',
-            'retail' => 'retail.rafiq@krishibyte.local',
-            'consumer' => 'consumer.tariq@krishibyte.local',
-        ];
-
-        if (! isset($emailMap[$role])) {
-            return redirect()->route('login')->with('error', 'Invalid demo role.');
-        }
-
-        $user = User::where('email', $emailMap[$role])->first();
-        if (! $user) {
-            return redirect()->route('login')->with('error', 'Demo user not found. Please run seeders.');
-        }
-
-        abort_unless($user->account_status === 'active', 403);
-        Auth::login($user);
-        request()->session()->regenerate();
-
-        return $this->redirectBasedOnRole($user)
-            ->with('info', "Logged in as {$user->name} ({$user->role}) via local demo shortcut.");
-    }
-
     public function showRegister()
     {
         if (Auth::check()) {

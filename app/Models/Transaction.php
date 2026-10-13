@@ -53,6 +53,29 @@ class Transaction extends Model
         'is_voided' => 'boolean',
     ];
 
+    /** A participant's view of the recorded transfer, never a shipping/GPS claim. */
+    public function movementStatusFor(User $participant): ?string
+    {
+        $received = (int) $this->buyer_id === (int) $participant->id;
+        $dispatched = (int) $this->seller_id === (int) $participant->id;
+        if (! $received && (! $dispatched || $participant->isRetail())) {
+            return null;
+        }
+        if ($this->is_voided) {
+            return 'Voided';
+        }
+        $label = $received
+            ? ($participant->isCollector() && $this->stage === 'farmer_to_collector' ? 'Received from farmer' : 'Received')
+            : 'Dispatched';
+
+        return match ($this->confirmation_status) {
+            'counterparty_accepted' => $label,
+            'collector_attested' => $label.' (collector attested)',
+            'legacy_unconfirmed' => $label.' (unconfirmed record)',
+            default => 'Awaiting confirmation',
+        };
+    }
+
     public function batch(): BelongsTo
     {
         return $this->belongsTo(Batch::class);

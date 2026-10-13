@@ -12,7 +12,7 @@ Allowed transitions:
 
 - farmer → collector (collector records agreed terms with a private contract image, read-aloud attestation and witness; optional legacy farmer accounts may use proposals)
 - collector/wholesale → collector/wholesale/retail, including repeated intermediaries
-- retail → consumer or anonymous walk-in sale, with the retailer retaining custody
+- retail receives deliveries and publishes shop asking prices; customer handoffs are disabled. Retained historical retail-sale service records are compatibility data, not a current customer workflow.
 
 Middlemen and shops propose terms and the recipient accepts before custody moves. Proposals reserve a whole lot for up to 48 hours; dispute/cancellation/expiry do not move stock. Farm purchases are explicitly collector-attested, not independently farmer-confirmed. Private receipts and images are participant/reviewer scoped. Actor/request keys make acceptance/purchase/sale retries idempotent, and changed payloads are rejected.
 
@@ -38,7 +38,7 @@ Reference prices compare crop, district, exact Bangladesh calendar date, source 
 
 Enrollment applications need public-profile consent and admin review before a profile is generated. Contact details remain private. Crop declarations are separate from recorded harvest/sale quantities; units are never silently combined. One rating per eligible account/farmer is moderated before publication, with separate middleman/shop and public summaries. Optional old farmer account routes remain compatible; profiles are the main entry.
 
-`showcase:populate` adds 10 synthetic lot scenarios, 18 transactions, 10 proposals, 8 private generated agreement fixtures, 12 report examples and 1,470 daily analytics samples (before user demo actions). It preserves completed workflow actions and existing credentials. Population and demo login are local/test-only; shortcuts also require loopback address and CSRF-protected POST.
+`showcase:populate` adds 10 synthetic lot scenarios, 18 transactions, 10 proposals, 8 private generated agreement fixtures, 12 report examples and 1,470 daily analytics samples (before user demo actions). It preserves completed workflow actions and existing credentials. Population is local/test-only; the showcase page and role sign-in shortcuts are removed. All website roles sign in normally with passwords.
 
 ## Boundaries
 

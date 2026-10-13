@@ -9,3 +9,11 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+/tests export-ignore
+/phpunit.xml export-ignore
+/.env.testing export-ignore
+/.phpunit.result.cache export-ignore
+/tools export-ignore
+/Showcase-KrishiByte.cmd export-ignore
+/Populate-Showcase.cmd export-ignore
+/database/sql export-ignore

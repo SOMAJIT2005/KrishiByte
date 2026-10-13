@@ -8,7 +8,7 @@ KrishiByte follows a harvest from the farm gate to the kitchen market. Every cus
 ![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?logo=php&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3-7952B3?logo=bootstrap&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-87%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-91%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 > ⚠️ **Status: local pilot / demonstration project.** All seeded data (prices, markets, shops, farmers, agreements) is **synthetic and illustrative**. It is not official market data and not a registry of real marketplaces. See [Limitations](#-limitations-and-production-readiness) before any real deployment.
@@ -21,7 +21,7 @@ KrishiByte follows a harvest from the farm gate to the kitchen market. Every cus
 2. [Key features](#-key-features)
 3. [Tech stack](#-tech-stack)
 4. [Quick start](#-quick-start)
-5. [Demo showcase](#-demo-showcase)
+5. [Manual testing data](#-manual-testing-data)
 6. [Roles and permissions](#-roles-and-permissions)
 7. [How the supply chain works](#-how-the-supply-chain-works)
 8. [Price intelligence and analytics](#-price-intelligence-and-analytics)
@@ -46,6 +46,12 @@ Produce prices in Bangladesh often multiply between farm gate (e.g. Bogura, Dina
 KrishiByte models each harvest **lot as a traceable batch** with a single current custodian, records each transfer atomically, calculates decimal-safe spreads and markups, and raises **review flags** (not accusations) when configured thresholds are exceeded.
 
 ## ✨ Key features
+
+### Received and dispatched goods
+- Collectors and wholesalers see **Received** and **Dispatched** in their private Transaction & Handoff History. The first collector sees **Received from farmer**.
+- Farmer purchases retain their **collector attested** qualification; older records remain **unconfirmed**, and reversed transfers show **Voided**. Review flags remain separate.
+- Retail shops have a paginated **Received goods** section showing sender, batch, crop, acquisition quantity and price. Shops publish asking prices without outgoing customer handoffs.
+- Movement labels follow recorded custody transfers. A proposal does not mean dispatched or received: the recipient must accept. These labels are not GPS tracking or proof of payment.
 
 ### Traceability
 - Unique batch codes (`KB-YYYYMMDD-XXXXXX`) with original farmer, harvest date, quantity, unit and farm-gate price preserved through the whole journey.
@@ -91,10 +97,38 @@ KrishiByte models each harvest **lot as a traceable batch** with a single curren
 | UI | Bootstrap 5.3.3, Bootstrap Icons, vanilla JavaScript |
 | Charts / maps | Chart.js 4.4.2, Leaflet 1.9.4 + OpenStreetMap tiles |
 | Testing | PHPUnit 11 (Feature + Unit) |
-| Tooling | Laravel Pint, Vite 7 / Tailwind 4 (scaffold only; UI uses CDN Bootstrap) |
+| Tooling | Composer and Laravel Pint; no Node build needed for the Blade UI |
 | Local launchers | Windows `.cmd` + PowerShell scripts |
 
-Frontend libraries load from CDNs, so maps and charts need internet access.
+Bootstrap JavaScript is served locally, so handoff modals and navigation no longer require a CDN script download. Bootstrap CSS/icons, Chart.js, Leaflet and map tiles still need internet access.
+
+### Feature screenshots
+
+These are local illustrative product examples, not official market observations.
+
+![KrishiByte public homepage](docs/screenshots/home-desktop.jpg)
+
+![Batch journey from farm origin through recorded custody transfers](docs/screenshots/batch-journey-desktop.jpg)
+
+| Price insights | District → market → shops |
+|---|---|
+| ![Daily price history and high/low references](docs/screenshots/analytics-price-history.jpg) | ![Market shops, goods and origins](docs/screenshots/market-traceability.png) |
+
+| Farmer profile | Collector purchase receipt |
+|---|---|
+| ![Farmer crops and sales profile](docs/screenshots/farmer-profile.jpg) | ![Private collector-attested receipt](docs/screenshots/farmer-agreement-receipt.jpg) |
+
+| Authority review | Retail asking prices |
+|---|---|
+| ![Stage price and markup comparison](docs/screenshots/authority-stage-chart-fixed.png) | ![Retail received-goods history and pricing workspace](docs/screenshots/retail-received-goods.png) |
+
+![Working custody handoff form](docs/screenshots/handoff-local-bootstrap-fixed.png)
+
+| Normal password sign-in | Manual correction outcomes |
+|---|---|
+| ![Product login without role shortcuts](docs/screenshots/product-login.png) | ![Pending, disputed, cancelled and accepted corrections](docs/screenshots/manual-corrections.png) |
+
+Fresh live-browser checks verified the normal sign-in page, retailer/wholesaler password login, received-goods history and correction fixtures. The removed showcase URL returns 404.
 
 ---
 
@@ -104,7 +138,7 @@ Frontend libraries load from CDNs, so maps and charts need internet access.
 - PHP 8.2+ with `bcmath`, `curl`, `fileinfo`, `gd`, `intl`, `mbstring`, `mysqli`, `pdo_mysql`, `openssl`, `xml`
 - Composer 2.x
 - MySQL 8.0 running on `127.0.0.1:3306`
-- (Optional) Node.js, only if you want to build the Vite scaffold
+- No Node.js/npm required; the unused Vite/Tailwind scaffold has been removed.
 
 ### Installation
 
@@ -116,6 +150,8 @@ composer install
 cp .env.example .env
 php artisan key:generate
 ```
+
+On PowerShell, use `Copy-Item .env.example .env` instead of `cp`. Generate a key **only for a new installation**. On an existing project, preserve `.env` and its `APP_KEY` so encrypted identifiers remain readable.
 
 Create two databases (one for the app, one for tests):
 
@@ -135,30 +171,39 @@ php -S 127.0.0.1:8000 -t public      # or: php artisan serve
 
 Open <http://127.0.0.1:8000>.
 
-> Keep `APP_ENV=local` for the demo shortcuts. Seeding preserves existing users and demo batches; it does **not** reset them. Do **not** use `migrate:fresh` on a database you care about.
+> Keep `APP_ENV=local` for local manual fixture population. Seeding preserves existing users and demo batches; it does **not** reset them. Do **not** use `migrate:fresh` on a database you care about.
 
 ### Windows one-click launchers
 
 | File | What it does |
 |---|---|
-| `Populate-Showcase.cmd` | Runs `php artisan showcase:populate`, generates the synthetic demo agreement image, then starts the showcase |
-| `Showcase-KrishiByte.cmd` | Checks MySQL, reuses or starts a hidden PHP server on port 8000, opens `/demo-showcase` |
+| `Populate-Showcase.cmd` | Runs `php artisan manual:populate`, generates the synthetic agreement fixture, then starts the website |
+| `Showcase-KrishiByte.cmd` | Checks MySQL, reuses or starts a hidden PHP server on port 8000, opens the normal homepage `/` (legacy launcher filename) |
 
 Both accept `-NoBrowser`; the start script accepts `-Port <n>`. Wampserver MySQL must be running.
+
+For this existing PC installation, start Wampserver and double-click **Showcase-KrishiByte.cmd** on your desktop. Or run:
+
+```powershell
+cd D:\KrishiByte
+.\Showcase-KrishiByte.cmd
+```
+
+**“127.0.0.1 refused to connect”** means the website's PHP server on port 8000 is stopped; Wampserver/MySQL can still be running. The showcase launcher starts/reuses the server. Refresh afterward. Alternatively run `php artisan serve --host=127.0.0.1 --port=8000` and keep that terminal open. If another application occupies port 8000, use `tools/Start-Showcase.ps1 -Port 8011` and its corresponding URL.
 
 ### Artisan commands
 
 ```bash
-php artisan showcase:populate      # idempotent demo data (local/testing only)
+php artisan manual:populate        # synthetic data in every table (local/testing only)
 php artisan reports:secure-evidence # move legacy public evidence to private storage
 php artisan test                   # run the suite
 ```
 
 ---
 
-## 🎬 Demo showcase
+## 🎬 Manual testing data
 
-After `showcase:populate`, open <http://127.0.0.1:8000/demo-showcase> (localhost + local env only). It provides **one-click role shortcuts**, ten prepared scenarios (`KB-DEMO-*` lots) and role-by-role walkthroughs.
+The normal website uses password-based sign-in at `/login`. The showcase page and one-click role shortcuts are removed. Run `php artisan manual:populate` on local/test installations for synthetic coverage in every table. For a fresh installation, import [schema.sql](database/sql/schema.sql), then [manual_test_data.sql](database/sql/manual_test_data.sql); see the [SQL import instructions](database/sql/README.md) and [role-by-role manual guide](docs/MANUAL_TESTING.md).
 
 **Populated demo dataset**
 
@@ -171,6 +216,8 @@ After `showcase:populate`, open <http://127.0.0.1:8000/demo-showcase> (localhost
 | Demo shops / market lots / shop quotes | 78 / 156 / 312 |
 
 Every synthetic record is labelled as demo and is kept out of real survey statistics.
+
+The SQL snapshot additionally includes pending/accepted/disputed/cancelled correction requests, farmer-access requests, enrollments and trading/verification states, plus expired/quarantined framework examples. **All 28 tables are populated.** The SQL package includes eight generated private agreement images and a restore-verified manifest. It is built independently from synthetic seeders and contains no working-database dump. Import only into a new empty DB; preserve the existing installation's encryption key and follow the separate fixture-key instructions for a fresh SQL import.
 
 **Local seeded accounts (demo only — change or remove before any real use)**
 
@@ -290,8 +337,8 @@ Asking prices are shop-entered quotes, not verified payments, and are not promot
 
 | Area | Examples |
 |---|---|
-| Public | `/`, `/prices`, `/analytics`, `/farmers`, `/farmers/enroll`, `/traceability`, `/traceability/{code}`, `/report`, `/report/track`, `/faq`, `/demo-showcase` (local) |
-| Auth | `/login`, `/register`, `/demo-login/{role}` (local POST), `/logout` |
+| Public | `/`, `/prices`, `/analytics`, `/farmers`, `/farmers/enroll`, `/traceability`, `/traceability/{code}`, `/report`, `/report/track`, `/faq` |
+| Auth | `/login`, `/register`, `/logout` |
 | Vendor | `/vendor/dashboard`, `/vendor/farmer-purchase`, `/handoffs`, `/corrections`, `/retail/prices` |
 | Farmer private | `/farmer-access`, `/farmer-agreements/{id}` |
 | Authority | `/authority/dashboard`, flag review, report moderation |
@@ -330,7 +377,7 @@ Migrations are additive. `down()` methods that would discard financial, consent 
 
 - **Public pages never show:** phone/email, NID/trade license, precise farm or transaction GPS, agreement images, historical customer names, report narratives, evidence, moderator notes.
 - NID/trade license encrypted with Laravel's encrypted cast (keep the matching `APP_KEY` with backups).
-- CSRF on all mutations; demo login is POST-only, local-environment, loopback-only.
+- CSRF on all mutations; password-free demo sign-in routes have been removed.
 - Session regeneration on login/registration; suspended sessions rejected.
 - Recent-password confirmation for admin governance actions.
 - Application-level append-only audit (model update/delete rejected). *DB administrators can still alter SQL rows.*
@@ -353,13 +400,13 @@ php artisan test --compact
 php -d memory_limit=256M vendor/bin/phpunit
 ```
 
-- Latest recorded full run: **87 tests / 695 assertions** passing on MySQL `krishibyte_test` (feature tests roll back via `DatabaseTransactions`).
+- Latest recorded full run (13 October 2026): **91 tests / 778 assertions** passing on MySQL `krishibyte_test` (feature tests roll back via `DatabaseTransactions`). Includes movement labels, first collection, unconfirmed/voided distinctions, all registered-buyer routes, removed shortcut routes and idempotent all-table manual fixture coverage. SQL restoration also matched every row across all 28 tables.
 - Coverage includes: RBAC, registration rules, custody/proposals/corrections, idempotency, anomaly rules and severity, analytics source separation, evidence privacy and quotas, farmer enrollment/ratings/assisted access, marketplace and retail quotes, district-first recipient selection, authority charts, showcase seeding.
 - **Real concurrency check** (overlapping MySQL processes):
 
 ```powershell
 $env:DB_DATABASE = 'krishibyte_test'
-php tools/concurrency-check.php
+php tests/support/concurrency-check.php
 ```
 
 - `tools/security-backup.php <date>` creates a local snapshot and verifies an exact restore in an isolated database.
@@ -383,17 +430,19 @@ krishibyte/
 ├── config/
 ├── database/
 │   ├── migrations/           # Additive, history-preserving
-│   └── seeders/              # Users, districts, crops, rules, demo/showcase/marketplace seeders
-├── docs/                     # ARCHITECTURE, ENVIRONMENT, SECURITY_REVIEW, SHOWCASE, TESTING,
+│   ├── seeders/              # Users, districts, crops, rules and guarded manual fixtures
+│   └── sql/                  # Schema + synthetic data, manifest, private fixture images, import guide
+├── docs/                     # ARCHITECTURE, ENVIRONMENT, SECURITY_REVIEW, MANUAL_TESTING, TESTING,
 │                             # REVIEW_REMEDIATION_2026-10-13, screenshots/
-├── public/                   # Front controller, refined.css
+├── public/                   # Web root: front controller, css/refined.css, assets/bootstrap/
 ├── resources/views/          # layouts, public, admin, authority, vendor, farmer, auth, components
-├── routes/                   # web.php, console.php (showcase:populate, reports:secure-evidence)
-├── tests/                    # Feature + Unit suites
-├── tools/                    # concurrency-check, security-backup, demo-agreement, PowerShell launchers
+├── routes/                   # web.php, console.php (manual:populate, reports:secure-evidence)
+├── tests/                    # Feature + Unit suites; support/concurrency-check.php
+├── tools/                    # Security backup, isolated SQL export, fixture image and launchers
 ├── Populate-Showcase.cmd
 ├── Showcase-KrishiByte.cmd
 ├── WORK_SUMMARY.md           # Chronological build and verification log
+├── DESIGN.md / UX-CONTRACT.md # Shared visual and workflow contracts
 └── LICENSE
 ```
 
@@ -405,7 +454,7 @@ Key `.env` settings (see `.env.example`):
 
 | Variable | Default | Notes |
 |---|---|---|
-| `APP_ENV` | `local` | Demo shortcuts, showcase and demo analytics default require `local` (or `testing` for population) |
+| `APP_ENV` | `local` | Manual fixture population requires `local`/`testing`; normal routes have no sign-in shortcuts |
 | `APP_KEY` | generated | **Never regenerate against an existing database** (encrypted identifiers) |
 | `DB_*` | MySQL `krishibyte` @ `127.0.0.1:3306`, `root` / empty | Use a least-privilege account in production |
 | `SMS_DRIVER` | `dummy` | Mock adapter only |
@@ -434,18 +483,20 @@ This is a **verified local prototype**, not a production certification.
 - Least-privilege DB account; monitored, encrypted, off-host backups and tested restores
 - Stronger nonce-based CSP and locally hosted frontend assets (CDN integrity)
 - Evidence retention/archival policy, storage monitoring
-- Independent security testing; npm lockfile + frontend dependency audit
+- Independent security testing and audit of remaining CDN frontend assets
 - Credential rotation and Git-history clean-up for secrets committed earlier
 
 ---
 
 ## 📚 Further documentation
 
+See [Deployment guide](docs/DEPLOYMENT.md) for runtime files, release exclusions, deployment and rollback. Source cleanup does not resolve the production limitations above.
+
 | Document | Contents |
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Custody model, verification, reporting, price methodology |
 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | Verified local environment, safe upgrades, test databases |
-| [`docs/SHOWCASE.md`](docs/SHOWCASE.md) | Role-by-role presentation guide |
+| [`docs/MANUAL_TESTING.md`](docs/MANUAL_TESTING.md) | Role-by-role presentation guide |
 | [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) | Findings, decisions, remaining deployment work |
 | [`docs/REVIEW_REMEDIATION_2026-10-13.md`](docs/REVIEW_REMEDIATION_2026-10-13.md) | B01–B12 mapping, capability matrix, recovery notes |
 | [`docs/TESTING.md`](docs/TESTING.md) | Test results, live browser checks, concurrency and restore evidence |

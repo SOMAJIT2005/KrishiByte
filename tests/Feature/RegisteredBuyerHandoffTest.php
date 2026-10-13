@@ -64,6 +64,11 @@ class RegisteredBuyerHandoffTest extends TestCase
             $this->assertEquals(10, $batch->available_quantity);
             $this->assertEquals(31, $tx->price_per_unit);
             $this->assertSame('counterparty_accepted', $tx->confirmation_status);
+            $this->assertSame('Dispatched', $tx->movementStatusFor($seller));
+            $this->assertSame('Received', $tx->movementStatusFor($buyer));
+            $this->actingAs($seller)->get(route('vendor.dashboard'))->assertOk()->assertSee('Dispatched');
+            $this->actingAs($buyer)->get(route($buyerRole === 'retail' ? 'retail.prices' : 'vendor.dashboard'))
+                ->assertOk()->assertSee('Received')->assertSee($batch->batch_code);
         }
     }
 

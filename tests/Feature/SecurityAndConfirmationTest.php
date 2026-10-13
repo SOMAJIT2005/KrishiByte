@@ -265,11 +265,12 @@ class SecurityAndConfirmationTest extends TestCase
     public function test_security_headers_demo_get_and_production_shortcuts(): void
     {
         $this->get('/')->assertHeader('X-Content-Type-Options', 'nosniff')->assertHeader('X-Frame-Options', 'DENY')->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $this->get('/demo-login/admin')->assertStatus(405);
+        $this->get('/demo-login/admin')->assertNotFound();
+        $this->get('/demo-showcase')->assertNotFound();
         $this->post('/demo-login/admin')->assertNotFound();
         $this->app['env'] = 'production';
         $this->get('/login')->assertDontSee('1-Click Demo');
-        $this->post('/demo-login/admin')->assertStatus(419); // CSRF is enforced outside the test environment.
+        $this->post('/demo-login/admin')->assertNotFound();
     }
 
     public function test_rolled_back_acceptance_emits_no_success_sms(): void

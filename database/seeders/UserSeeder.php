@@ -12,6 +12,9 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('Synthetic account seeds are restricted to local/test environments.');
+        }
         $dhaka = District::where('code', 'DHK')->first();
         $bogura = District::where('code', 'BOG')->first();
 

@@ -1,32 +1,27 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
-
-# Other files and folders
-.settings/
-
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
-
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
-
-# Laravel local configuration and generated assets
+# Local secrets; only explicit example/testing fixtures belong in source control.
 /.env
 /.env.*
 !/.env.example
 !/.env.testing
-/node_modules/
+
+# Installed dependencies and generated frontend output.
 /vendor/
+/node_modules/
 /public/build/
 /public/hot
 /public/storage
+
+# Generated test output and private runtime files.
 /.phpunit.result.cache
 /.phpunit.cache/
+/storage/logs/*.txt
+/storage/logs/*.log
+/storage/logs/*.pid
 /storage/*.key
+/storage/manual-fixture-build/
+
+# Local editor and OS artifacts.
+/.idea/
+/.vscode/
+/.DS_Store
+/Thumbs.db

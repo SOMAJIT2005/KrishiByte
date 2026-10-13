@@ -51,53 +51,7 @@
             </div>
         </div>
 
-        @if(app()->environment('local'))
-        <div class="card shadow-sm border-0 mt-4" style="border: 1px solid var(--kb-border);">
-            <div class="card-body p-4">
-                <div class="d-flex align-items-center gap-2 mb-3">
-                    <div class="bg-warning-kpi rounded p-2 d-flex flex-column align-items-center" style="min-width: 2rem;">
-                        <i class="bi bi-lightning-charge-fill fs-5" style="color: var(--kb-warning);"></i>
-                    </div>
-                    <div>
-                        <h6 class="fw-bold mb-0" style="color: var(--kb-text);">1-Click Demo Review Shortcuts</h6>
-                        <small class="text-muted d-block">Click any role to instantly log in and test the dashboard</small>
-                    </div>
-                </div>
-                <div class="row g-2">
-                    <div class="col-6 col-md-4">
-                        <form method="POST" action="{{ route('demo.login', 'farmer') }}">@csrf<button class="btn btn-outline-success btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-success); border-color: var(--kb-success);" type="submit">
-                            <i class="bi bi-tractor"></i> Farmer
-                        </button></form>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <form method="POST" action="{{ route('demo.login', 'collector') }}">@csrf<button class="btn btn-outline-info btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-info); border-color: var(--kb-info);" type="submit">
-                            <i class="bi bi-truck"></i> Collector
-                        </button></form>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <form method="POST" action="{{ route('demo.login', 'wholesale') }}">@csrf<button class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-primary-light); border-color: var(--kb-primary-light);" type="submit">
-                            <i class="bi bi-building"></i> Wholesale
-                        </button></form>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <form method="POST" action="{{ route('demo.login', 'retail') }}">@csrf<button class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-text); border-color: var(--kb-border);" type="submit">
-                            <i class="bi bi-shop"></i> Retailer
-                        </button></form>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <form method="POST" action="{{ route('demo.login', 'authority') }}">@csrf<button class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-danger); border-color: var(--kb-danger);" type="submit">
-                            <i class="bi bi-shield-check"></i> Authority
-                        </button></form>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <form method="POST" action="{{ route('demo.login', 'admin') }}">@csrf<button class="btn btn-outline-dark btn-sm w-100 d-flex align-items-center justify-content-center gap-1" style="border-radius: 0.5rem; color: var(--kb-text); border-color: var(--kb-border);" type="submit">
-                            <i class="bi bi-gear"></i> Admin
-                        </button></form>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endif
+
     </div>
 </div>
 @endsection
